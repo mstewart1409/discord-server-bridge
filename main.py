@@ -3,8 +3,6 @@ import threading
 import discord
 from discord.ext import commands
 from telegram import Bot
-from telegram import Update
-from telegram.ext import CommandHandler
 from telegram.ext import Filters
 from telegram.ext import MessageHandler
 from telegram.ext import Updater
