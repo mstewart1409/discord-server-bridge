@@ -3,13 +3,12 @@ import logging
 import threading
 
 import discord
+from config import app_config
 from discord.ext import commands
 from telegram import Bot
 from telegram.ext import Filters
 from telegram.ext import MessageHandler
 from telegram.ext import Updater
-
-from config import app_config
 
 
 # Initialize the Telegram bot

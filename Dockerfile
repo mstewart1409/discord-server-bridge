@@ -33,10 +33,19 @@ RUN pip install "poetry==$POETRY_VERSION"
 
 WORKDIR /app
 
-COPY . /app
+# Change user
+RUN useradd -m -r user && \
+    chown user /app
+
+COPY ./poetry.lock ./pyproject.toml ./.env /app/
 
 RUN poetry config virtualenvs.create false && \
-    poetry install --only main --no-interaction --no-ansi \
+    poetry install --only main --no-interaction --no-ansi
+
+
+USER user
+
+COPY ./app ./app
 
 # Run app
-CMD ["python", "main.py"]
+CMD ["python", "app/main.py"]
