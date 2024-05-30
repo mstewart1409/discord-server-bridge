@@ -1,7 +1,8 @@
-!BuildStatus(https://img.shields.io/github/workflow/status/mstewart1409/discord-telegram-bridge/CI)
-!CodeCoverage(https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)
-!License(https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)
-!PythonVersion(https://img.shields.io/badge/python-3.6%20%7C%203.7%20%7C%203.8-blue)
+[![Build Status](https://img.shields.io/github/workflow/status/mstewart1409/discord-telegram-bridge/CI)](https://img.shields.io/github/workflow/status/mstewart1409/discord-telegram-bridge/CI)
+[![Code Coverage](https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)](https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)
+[![License](https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)](https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)
+[![Python Version](https://img.shields.io/badge/python-3.11-blue)](https://img.shields.io/badge/python-3.11-blue)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/mstewart1409/discord-telegram-bridge.svg?color=dark-green)](https://github.com/plotly/mstewart1409/discord-telegram-bridge/contributors)
 
 **Table of Contents:**
 
