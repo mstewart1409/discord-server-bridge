@@ -1,7 +1,7 @@
 
 **Table of Contents:**
 
-- [Development Dependencies](#development-dependencies)
+- [Development](#development)
 - [Local testing](#local-testing)
 
 # Development
