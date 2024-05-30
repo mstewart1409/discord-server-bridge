@@ -1,8 +1,24 @@
+!BuildStatus(https://img.shields.io/github/workflow/status/mstewart1409/discord-telegram-bridge/CI)
+!CodeCoverage(https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)
+!License(https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)
+!PythonVersion(https://img.shields.io/badge/python-3.6%20%7C%203.7%20%7C%203.8-blue)
 
 **Table of Contents:**
 
+- [Introduction](#introduction)
 - [Development](#development)
 - [Local testing](#local-testing)
+
+# Introduction
+
+This application is a bot that synchronizes messages between Discord and Telegram. It listens for new messages, edits, and deletions on both platforms and mirrors these actions on the other platform.
+
+The bot is written in Python and uses the discord.py and python-telegram-bot libraries to interact with the Discord and Telegram APIs, respectively. It uses asyncio for asynchronous I/O and threading to run the Discord and Telegram bots concurrently.
+
+The bot is designed to be run in a Docker container for easy deployment and isolation. Development is facilitated by pre-commit for managing git hooks and Poetry for dependency management.
+
+Please note that this bot does not support commands in messages, and will not mirror changes to messages that were made before the bot started running.
+
 
 # Development
 
