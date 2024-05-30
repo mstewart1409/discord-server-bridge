@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "discord-telegram-bridge"
+version = "0.1.0"
+description = ""
+authors = ["Michael <m.n.stewart@live.co.uk>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+discord = "^2.3.2"
+python-telegram-bot = "^21.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.0"
+pytest-mock = "*"
+coverage = "^7.2.2"
+pre-commit = "2.20.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

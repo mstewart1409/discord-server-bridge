@@ -1,0 +1,29 @@
+# Python-specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+env/
+
+# IDE-specific
+.idea/*
+*.iml
+
+# Temporary files
+*.swp
+*~
+
+# Compiled Python files
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables
+.env
+
+# Logs and databases
+*.log
+*.sqlite3
