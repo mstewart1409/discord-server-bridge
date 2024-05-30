@@ -1,4 +1,4 @@
-[![Build Status](https://img.shields.io/github/workflow/status/mstewart1409/discord-telegram-bridge/CI)](https://img.shields.io/github/workflow/status/mstewart1409/discord-telegram-bridge/CI)
+[![Build Status](https://img.shields.io/github/workflow/status/mstewart1409/discord-telegram-bridge/docker-image.yml?label=build&logo=github)](https://github.com/mstewart1409/discord-telegram-bridge/actions/workflows/workflow.yml)
 [![Code Coverage](https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)](https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)
 [![License](https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)](https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)
 [![Python Version](https://img.shields.io/badge/python-3.11-blue)](https://img.shields.io/badge/python-3.11-blue)
