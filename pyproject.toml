@@ -8,7 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 discord = "^1.7.3"
-python-telegram-bot = "^13.7"
+python-telegram-bot = "^13.11"
 python-decouple = "^3.8"
 
 
