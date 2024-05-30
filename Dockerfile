@@ -37,15 +37,14 @@ WORKDIR /app
 RUN useradd -m -r user && \
     chown user /app
 
-COPY ./poetry.lock ./pyproject.toml ./.env /app/
+COPY ./poetry.lock ./pyproject.toml /app/
 
 RUN poetry config virtualenvs.create false && \
     poetry install --only main --no-interaction --no-ansi
 
+COPY . /app/
 
 USER user
 
-COPY ./app ./app
-
 # Run app
-CMD ["python", "app/main.py"]
+CMD ["python", "main.py"]
