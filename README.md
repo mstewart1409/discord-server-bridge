@@ -1,8 +1,8 @@
-[![Build Status](https://img.shields.io/github/workflow/status/mstewart1409/discord-telegram-bridge/docker-image.yml?label=build&logo=github)](https://github.com/mstewart1409/discord-telegram-bridge/actions/workflows/workflow.yml)
+[![Build Status](https://img.shields.io/github/workflow/status/mstewart1409/discord-telegram-bridge/docker-image.yml?label=build&logo=github)](https://github.com/mstewart1409/discord-telegram-bridge/actions/workflows/docker-image.yml)
 [![Code Coverage](https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)](https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)
 [![License](https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)](https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)
 [![Python Version](https://img.shields.io/badge/python-3.11-blue)](https://img.shields.io/badge/python-3.11-blue)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/mstewart1409/discord-telegram-bridge.svg?color=dark-green)](https://github.com/plotly/mstewart1409/discord-telegram-bridge/contributors)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/mstewart1409/discord-telegram-bridge.svg?color=dark-green)](https://github.com/mstewart1409/discord-telegram-bridge/contributors)
 
 **Table of Contents:**
 
