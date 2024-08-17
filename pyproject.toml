@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "discord-telegram-bridge"
+name = "discord-server-bridge"
 version = "0.1.0"
 description = ""
 authors = ["Michael <m.n.stewart@live.co.uk>"]
@@ -9,8 +9,8 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 "discord.py" = "^1.7.3"
-python-telegram-bot = "^13.11"
 python-decouple = "^3.8"
+"flask" = "^2.3.3"
 
 
 [tool.poetry.group.dev.dependencies]

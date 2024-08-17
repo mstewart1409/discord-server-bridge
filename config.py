@@ -7,8 +7,8 @@ class Config(object):
     basedir = os.path.abspath(os.path.dirname(__file__))
 
     DISCORD_TOKEN = config('DISCORD_TOKEN')
-    TELEGRAM_TOKEN = config('TELEGRAM_TOKEN')
-    TELEGRAM_CHAT_ID = config('TELEGRAM_CHAT_ID')
+    SERVER_KEY = config('SERVER_KEY')
+    SERVER_ENDPOINT = config('SERVER_ENDPOINT')
     DISCORD_CHANNEL_ID = config('DISCORD_CHANNEL_ID')
 
 
