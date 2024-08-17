@@ -1,8 +1,8 @@
-[![Build Status](https://img.shields.io/github/actions/workflow/status/mstewart1409/discord-telegram-bridge/docker-image.yml?label=build&logo=github)](https://github.com/mstewart1409/discord-telegram-bridge/actions/workflows/docker-image.yml)
-[![Code Coverage](https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)](https://img.shields.io/codecov/c/github/mstewart1409/discord-telegram-bridge)
-[![License](https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)](https://img.shields.io/github/license/mstewart1409/discord-telegram-bridge)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/mstewart1409/discord-server-bridge/docker-image.yml?label=build&logo=github)](https://github.com/mstewart1409/discord-server-bridge/actions/workflows/docker-image.yml)
+[![Code Coverage](https://img.shields.io/codecov/c/github/mstewart1409/discord-server-bridge)](https://img.shields.io/codecov/c/github/mstewart1409/discord-server-bridge)
+[![License](https://img.shields.io/github/license/mstewart1409/discord-server-bridge)](https://img.shields.io/github/license/mstewart1409/discord-server-bridge)
 [![Python Version](https://img.shields.io/badge/python-3.11-blue)](https://img.shields.io/badge/python-3.11-blue)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/mstewart1409/discord-telegram-bridge.svg?color=dark-green)](https://github.com/mstewart1409/discord-telegram-bridge/contributors)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/mstewart1409/discord-server-bridge.svg?color=dark-green)](https://github.com/mstewart1409/discord-server-bridge/contributors)
 
 **Table of Contents:**
 
@@ -12,9 +12,9 @@
 
 # Introduction
 
-This application is a bot that synchronizes messages between Discord and Telegram. It listens for new messages, edits, and deletions on both platforms and mirrors these actions on the other platform.
+This application is a bot that synchronizes messages between Discord and remote server. It listens for new messages, edits, and deletions on both platforms and mirrors these actions on the other platform.
 
-The bot is written in Python and uses the discord.py and python-telegram-bot libraries to interact with the Discord and Telegram APIs, respectively. It uses asyncio for asynchronous I/O and threading to run the Discord and Telegram bots concurrently.
+The bot is written in Python and uses the discord.py library to interact with the Discord and Backend server, respectively. It uses asyncio for asynchronous I/O and threading to run the Discord and Flask bots concurrently.
 
 The bot is designed to be run in a Docker container for easy deployment and isolation. Development is facilitated by pre-commit for managing git hooks and Poetry for dependency management.
 
