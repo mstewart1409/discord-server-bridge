@@ -2,12 +2,15 @@ import asyncio
 import json
 import logging
 import re
+import time
 from datetime import datetime, timedelta, date
 
 import pytz
 import socketio
 from discord.message import Message as DiscordMessage
 from werkzeug.security import generate_password_hash
+from sqlalchemy.exc import SQLAlchemyError
+from discord_bot import DiscordBot
 
 from database import session
 from models import Message
@@ -16,15 +19,17 @@ from models import Message
 class CustomJSONEncodeDecode:
     @staticmethod
     def dumps(obj, **kwargs):
-        return json.dumps(obj, **kwargs, default=CustomJSONEncodeDecode.datetime_jsonify)
+        return json.dumps(obj, **kwargs, default=CustomJSONEncodeDecode.object_jsonify)
 
     @staticmethod
     def loads(s, **kwargs):
         return json.loads(s, **kwargs, object_hook=CustomJSONEncodeDecode.datetime_parser)
 
     @staticmethod
-    def datetime_jsonify(o):
-        if isinstance(o, (datetime, date, timedelta)):
+    def object_jsonify(o):
+        if isinstance(o, Message):
+            return o.to_dict()
+        elif isinstance(o, (datetime, date, timedelta)):
             return o.isoformat()
 
     @staticmethod
@@ -43,6 +48,8 @@ class Server:
         self.socketio = socketio.Client(reconnection=False, logger=False, engineio_logger=False,
                                         json=CustomJSONEncodeDecode)
         self.session = session
+        self.namespace = '/feed'
+        self.connected = False
         self.endpoint = config.SERVER_ENDPOINT
         self.key = config.SERVER_KEY
         self.config = config
@@ -54,12 +61,19 @@ class Server:
         """with self.app.app_context():
             db.create_all()"""
 
-    def init_bot(self, discord_bot):
+    def init_bot(self, discord_bot: DiscordBot):
+        """
+        Initialize the discord bot
+        Args:
+            discord_bot: Discord bot
+        """
         self.discord_bot = discord_bot
         self.discord_channel = self.discord_bot.bot.get_channel(self.config.DISCORD_CHANNEL_ID)
 
     def add_routes(self):
-
+        """
+        Add routes to the socket
+        """
         @self.socketio.on('chat-message', namespace='/feed')
         def on_message(data):
             data = json.loads(data)
@@ -72,7 +86,12 @@ class Server:
             else:
                 logging.error(f'Unknown message type: {data["type"]}')
 
-    def handle_server_message(self, data):
+    def handle_server_message(self, data: dict):
+        """
+        Forward the message to discord
+        Args:
+            data: Payload from server
+        """
         message = Message(data['message'])
         loop = asyncio.get_event_loop()
         discord_message = loop.run_until_complete(self.discord_channel.send(message.text))
@@ -82,7 +101,12 @@ class Server:
         # Update discord_id on server
         self.update_server_data(message.id, discord_message.id)
 
-    def handle_server_message_edited(self, data):
+    def handle_server_message_edited(self, data: dict):
+        """
+        Edit the message on discord
+        Args:
+            data: Payload from server
+        """
         before_message = Message(data['before_message'])
         after_message = Message(data['after_message'])
 
@@ -96,59 +120,108 @@ class Server:
         logging.info(
             f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.text}')
 
-    def handle_server_message_deletion(self, data):
-        server_message = self.session.query(Message).filter_by(id=data['message']['id']).first()
+    def handle_server_message_deletion(self, data: dict):
+        """
+        Delete the message from discord
+        Args:
+            data: Payload from server
+        """
+        try:
+            server_message = self.session.query(Message).filter_by(id=data['message']['id']).first()
 
-        discord_message = self.loop.run_until_complete(self.discord_channel.fetch_message(server_message.discord_id))
+            discord_message = self.loop.run_until_complete(self.discord_channel.fetch_message(server_message.discord_id))
 
-        self.loop.run_until_complete(discord_message.delete())
+            self.loop.run_until_complete(discord_message.delete())
 
-        # Remove from server
-        self.session.delete(server_message)
-        self.session.commit()
+            # Remove from server
+            self.session.delete(server_message)
+            self.session.commit()
 
-        logging.info(f'Discord message deleted following deletion from server: {discord_message.content}')
+            logging.info(f'Discord message deleted following deletion from server: {discord_message.content}')
+        except SQLAlchemyError:
+            self.session.rollback()
 
     def start(self):
+        """
+        Start the connection to the server
+        """
         timestamp = str(datetime.now(pytz.UTC).timestamp())
         hash_k = generate_password_hash(self.config.SERVER_KEY + timestamp, method='pbkdf2')
         headers = {'Authorization': hash_k, 'Timestamp': timestamp}
         while True:
             try:
-                self.socketio.connect(self.endpoint, headers=headers, namespaces=['/feed'])
+                self.socketio.connect(self.endpoint, headers=headers, namespaces=[self.namespace])
                 logging.info('Connected to Server')
+                self.connected = True
                 self.socketio.wait()
+                self.connected = False
                 logging.info('Disconnected from Server')
+                time.sleep(2)
             except Exception as e:
+                self.connected = False
                 logging.error('Error in connection to Server..')
                 logging.error(repr(e))
 
     def update_server_data(self, msg_id: int, discord_id: int):
-        msg = self.session.query(Message).filter_by(id=msg_id).first()
-        msg.discord_id = discord_id
-        self.session.commit()
+        """
+        Update the discord_id on the server
+        Args:
+            msg_id: Server message ID
+            discord_id: Discord message ID
+        """
+        try:
+            msg = self.session.query(Message).filter_by(id=msg_id).first()
+            msg.discord_id = discord_id
+            self.session.commit()
+        except SQLAlchemyError:
+            self.session.rollback()
 
     def send_to_server(self, data: DiscordMessage):
+        """
+        Send the message to the server
+        Args:
+            data: DiscordMessage
+        """
         # Send the message to the server
-        msg = Message(data)
-        self.session.add(msg)
-        self.session.commit()
+        try:
+            msg = Message(data)
+            self.session.add(msg)
+            self.session.commit()
 
-        self.socketio.send('chat-message', {'type': 'new-message', 'message': msg})
+            self.socketio.emit('chat-message', {'type': 'new-message', 'message': msg}, self.namespace)
+        except SQLAlchemyError:
+            self.session.rollback()
 
     def edit_message_text(self, before_msg: DiscordMessage, after_msg: DiscordMessage):
+        """
+        Edit the message on the server
+        Args:
+            before_msg: DiscordMessage
+            after_msg: DiscordMessage
+        """
         # Edit the message on the server
-        server_msg = self.session.query(Message).filter_by(discord_id=before_msg.id).first()
-        server_msg.discord_id = after_msg.id
-        server_msg.text = after_msg.content
-        self.session.commit()
+        try:
+            server_msg = self.session.query(Message).filter_by(discord_id=before_msg.id).first()
+            server_msg.discord_id = after_msg.id
+            server_msg.text = after_msg.content
+            self.session.commit()
 
-        self.socketio.send('chat-message', {'type': 'edit-message', 'message': server_msg})
+            self.socketio.emit('chat-message', {'type': 'edit-message', 'message': server_msg}, self.namespace)
+        except SQLAlchemyError:
+            self.session.rollback()
 
     def delete_message(self, message: DiscordMessage):
+        """
+        Delete the message on the server
+        Args:
+            message: DiscordMessage
+        """
         # Delete the message on the server
-        server_msg = self.session.query(Message).filter_by(discord_id=message.id).first()
-        self.session.delete(server_msg)
-        self.session.commit()
+        try:
+            server_msg = self.session.query(Message).filter_by(discord_id=message.id).first()
+            self.session.delete(server_msg)
+            self.session.commit()
 
-        self.socketio.send('chat-message', {'type': 'delete-message', 'message': server_msg})
+            self.socketio.emit('chat-message', {'type': 'delete-message', 'message': server_msg}, self.namespace)
+        except SQLAlchemyError:
+            self.session.rollback()

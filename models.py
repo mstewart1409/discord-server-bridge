@@ -26,8 +26,17 @@ class Message(Base):
         self.text = data.content
         self.user_id = self.try_get_server_user(data.author)
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'discord_id': self.discord_id,
+            'text': self.text
+        }
+
     def try_get_server_user(self, discord_author):
-        user = self.session.query(User).filter_by(discord_id=discord_author.id).first()
+        user = None
+        #user = self.session.query(User).filter_by(discord_id=discord_author.id).first()
         return user.id if user else None
 
     def __repr__(self):
