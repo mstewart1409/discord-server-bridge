@@ -56,16 +56,9 @@ class Server:
 
     def init_bot(self, discord_bot):
         self.discord_bot = discord_bot
-        self.discord_channel = self.discord_bot.get_channel(self.config.DISCORD_CHANNEL_ID)
+        self.discord_channel = self.discord_bot.bot.get_channel(self.config.DISCORD_CHANNEL_ID)
 
     def add_routes(self):
-        @self.socketio.on('connect', namespace='/feed')
-        def connect():
-            logging.info('Connected to Server')
-
-        @self.socketio.on('disconnect', namespace='/feed')
-        def disconnect():
-            logging.info('Disconnected from Server')
 
         @self.socketio.on('chat-message', namespace='/feed')
         def on_message(data):
@@ -82,7 +75,7 @@ class Server:
     def handle_server_message(self, data):
         message = Message(data['message'])
         loop = asyncio.get_event_loop()
-        discord_message = loop.run_until_complete(self.discord_channel.send(message))
+        discord_message = loop.run_until_complete(self.discord_channel.send(message.text))
 
         logging.info(f'Server message forwarded to Discord: {message.text}')
 
@@ -104,11 +97,16 @@ class Server:
             f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.text}')
 
     def handle_server_message_deletion(self, data):
-        server_message = Message(data['message'])
+        server_message = self.session.query(Message).filter_by(id=data['message']['id']).first()
 
         discord_message = self.loop.run_until_complete(self.discord_channel.fetch_message(server_message.discord_id))
 
         self.loop.run_until_complete(discord_message.delete())
+
+        # Remove from server
+        self.session.delete(server_message)
+        self.session.commit()
+
         logging.info(f'Discord message deleted following deletion from server: {discord_message.content}')
 
     def start(self):
@@ -116,32 +114,41 @@ class Server:
         hash_k = generate_password_hash(self.config.SERVER_KEY + timestamp, method='pbkdf2')
         headers = {'Authorization': hash_k, 'Timestamp': timestamp}
         while True:
-            self.socketio.connect(self.endpoint, headers=headers, namespaces=['/feed'])
-            self.socketio.wait()
+            try:
+                self.socketio.connect(self.endpoint, headers=headers, namespaces=['/feed'])
+                logging.info('Connected to Server')
+                self.socketio.wait()
+                logging.info('Disconnected from Server')
+            except Exception as e:
+                logging.error('Error in connection to Server..')
+                logging.error(repr(e))
 
     def update_server_data(self, msg_id: int, discord_id: int):
         msg = self.session.query(Message).filter_by(id=msg_id).first()
         msg.discord_id = discord_id
         self.session.commit()
 
-    def send_to_server(self, message: DiscordMessage):
+    def send_to_server(self, data: DiscordMessage):
         # Send the message to the server
-        self.socketio.send('chat-message', {'type': 'new-message', 'message': Message(message)})
+        msg = Message(data)
+        self.session.add(msg)
+        self.session.commit()
+
+        self.socketio.send('chat-message', {'type': 'new-message', 'message': msg})
 
     def edit_message_text(self, before_msg: DiscordMessage, after_msg: DiscordMessage):
         # Edit the message on the server
-        self.socketio.send('chat-message', {'type': 'edit-message',
-                                            'before_message': Message(before_msg),
-                                            'after_message': Message(after_msg)})
-        with self.app.app_context():
-            server_msg = Message.query.filter_by(discord_id=before_msg.id).first()
-            server_msg.discord_id = after_msg.id
-            server_msg.text = after_msg.content
-            self.db.session.commit()
+        server_msg = self.session.query(Message).filter_by(discord_id=before_msg.id).first()
+        server_msg.discord_id = after_msg.id
+        server_msg.text = after_msg.content
+        self.session.commit()
+
+        self.socketio.send('chat-message', {'type': 'edit-message', 'message': server_msg})
 
     def delete_message(self, message: DiscordMessage):
         # Delete the message on the server
-        with self.app.app_context():
-            server_msg = Message.query.filter_by(discord_id=message.id).first()
-            self.db.session.delete(server_msg)
-            self.db.session.commit()
+        server_msg = self.session.query(Message).filter_by(discord_id=message.id).first()
+        self.session.delete(server_msg)
+        self.session.commit()
+
+        self.socketio.send('chat-message', {'type': 'delete-message', 'message': server_msg})
