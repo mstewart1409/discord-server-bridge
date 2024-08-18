@@ -51,7 +51,7 @@ class DiscordBot:
         """
         Start the discord bot
         """
-        self.bot.run(self.token)
+        self.bot.run(self.token, reconnect=True)
 
     # decorator for discord bot event handlers
     def discord_bot_handler(self, func):

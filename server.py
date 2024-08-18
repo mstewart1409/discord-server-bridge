@@ -14,6 +14,7 @@ from discord_bot import DiscordBot
 
 from database import session
 from models import Message
+from models import User
 
 
 class CustomJSONEncodeDecode:
@@ -58,8 +59,7 @@ class Server:
         self.loop = asyncio.get_event_loop()
 
         self.add_routes()
-        """with self.app.app_context():
-            db.create_all()"""
+        self.session.create_all()
 
     def init_bot(self, discord_bot: DiscordBot):
         """
@@ -93,8 +93,9 @@ class Server:
             data: Payload from server
         """
         message = Message(data['message'])
-        loop = asyncio.get_event_loop()
-        discord_message = loop.run_until_complete(self.discord_channel.send(message.text))
+        user = self.session.query(User).filter_by(id=message.user_id).first()
+        discord_message = self.loop.run_until_complete(self.discord_channel.send(
+            f'{user.display_name}: {message.text}'))
 
         logging.info(f'Server message forwarded to Discord: {message.text}')
 
@@ -109,10 +110,12 @@ class Server:
         """
         before_message = Message(data['before_message'])
         after_message = Message(data['after_message'])
+        user = self.session.query(User).filter_by(id=before_message.user_id).first()
 
         discord_message = self.loop.run_until_complete(self.discord_channel.fetch_message(before_message.discord_id))
 
-        edited_message = self.loop.run_until_complete(discord_message.edit(content=after_message.text))
+        edited_message = self.loop.run_until_complete(discord_message.edit(
+            content=f'{user.display_name}: {after_message.text}'))
 
         # Update discord_id on server
         self.update_server_data(before_message.id, edited_message.id)
@@ -127,8 +130,7 @@ class Server:
             data: Payload from server
         """
         try:
-            server_message = self.session.query(Message).filter_by(id=data['message']['id']).first()
-
+            server_message = Message(data['message'])
             discord_message = self.loop.run_until_complete(self.discord_channel.fetch_message(server_message.discord_id))
 
             self.loop.run_until_complete(discord_message.delete())
