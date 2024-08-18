@@ -1,9 +1,9 @@
 from discord.message import Message as DiscordMessage
 from sqlalchemy import Column, Integer, String
-from database import db
+from database import Base, session
 
 
-class Message(db.Model):
+class Message(Base):
     __tablename__ = 'chat_messages'
 
     id = Column(Integer, primary_key=True)
@@ -12,26 +12,29 @@ class Message(db.Model):
     text = Column(String, nullable=False)
 
     def __init__(self, data):
+        super().__init__()
+        self.session = session
         if isinstance(data, DiscordMessage):
             self.from_discord(data)
         else:
-            self.from_server(data)
+            self.user_id = data['user_id']
+            self.discord_id = data['discord_id']
+            self.text = data['text']
 
     def from_discord(self, data: DiscordMessage):
         self.discord_id = data.id
         self.text = data.content
         self.user_id = self.try_get_server_user(data.author)
 
-    @staticmethod
-    def try_get_server_user(discord_author):
-        user = User.query.filter_by(discord_id=discord_author.id).first()
+    def try_get_server_user(self, discord_author):
+        user = self.session.query(User).filter_by(discord_id=discord_author.id).first()
         return user.id if user else None
 
     def __repr__(self):
         return f'<Message {self.id}>'
 
 
-class User(db.Model):
+class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True)

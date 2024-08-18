@@ -2,12 +2,11 @@ import logging
 import threading
 
 from config import app_config
-from database import db
 from discord_bot import DiscordBot
 from server import Server
 
 # Initialize the server bot
-server_bot = Server(app_config, db)
+server_bot = Server(app_config)
 
 # Initialize the Discord bot
 discord_bot = DiscordBot(app_config)
