@@ -133,7 +133,9 @@ class Server:
         self.session.add(message)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'new-message', 'message': message}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'new-message',
+                                            'channel_id': self.discord_bot.channel_id,
+                                            'message': message}, self.namespace)
 
         logging.info(f'Server message forwarded to Discord: {message.text}')
 
@@ -163,7 +165,8 @@ class Server:
         self.session.add(after_message)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'edit-message', 'before_message': before_message,
+        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': self.discord_bot.channel_id,
+                                            'before_message': before_message,
                                             'after_message': after_message}, self.namespace)
 
         logging.info(
@@ -186,7 +189,9 @@ class Server:
         server_message.hidden = True
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'delete-message', 'message': server_message}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'delete-message',
+                                            'channel_id': self.discord_bot.channel_id,
+                                            'message': server_message}, self.namespace)
 
         logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
 
@@ -223,7 +228,8 @@ class Server:
         self.session.add(msg)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'new-message', 'message': msg}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'new-message',
+                                            'channel_id': self.discord_bot.channel_id, 'message': msg}, self.namespace)
 
     @handle_connection_error
     def edit_message_text(self, before_msg: DiscordMessage, after_msg: DiscordMessage):
@@ -244,7 +250,8 @@ class Server:
         self.session.add(new_server_msg)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'edit-message', 'before_message': server_msg,
+        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': self.discord_bot.channel_id,
+                                            'before_message': server_msg,
                                             'after_message': new_server_msg}, self.namespace)
 
     @handle_connection_error
@@ -259,4 +266,6 @@ class Server:
         server_msg.hidden = True
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'delete-message', 'message': server_msg}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'delete-message',
+                                            'channel_id': self.discord_bot.channel_id,
+                                            'message': server_msg}, self.namespace)
