@@ -4,6 +4,7 @@ import threading
 from config import app_config
 from discord_bot import DiscordBot
 from server import Server
+from database import Base, engine
 
 # Initialize the server bot
 server_bot = Server(app_config)
@@ -14,9 +15,11 @@ discord_bot = DiscordBot(app_config)
 server_bot.init_bot(discord_bot)
 discord_bot.init_bot(server_bot)
 
+Base.metadata.create_all(engine)
+
 # Set up logging
-logging.getLogger('discord').setLevel(logging.DEBUG)
-logging.getLogger('root').setLevel(logging.DEBUG)
+logging.getLogger('discord').setLevel(logging.INFO)
+logging.getLogger('root').setLevel(logging.INFO)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
 

@@ -9,4 +9,3 @@ engine = create_engine(app_config.SQLALCHEMY_DATABASE_URI, echo=True)
 session_factory = sessionmaker(bind=engine)
 session = scoped_session(session_factory)
 Base = declarative_base()
-
