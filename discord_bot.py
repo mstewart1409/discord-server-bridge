@@ -6,8 +6,13 @@ import logging
 
 class DiscordBot:
     def __init__(self, config):
-        self.bot = commands.Bot(command_prefix='!', intents=discord.Intents.default())
+        intents = discord.Intents.default()
+        intents.messages = True
+        intents.guilds = True
+        self.bot = commands.Bot(command_prefix='!', intents=intents)
         self.server_bot = None
+        self.discord_channel = None
+        self.channel_id = config.DISCORD_CHANNEL_ID
         self.token = config.DISCORD_TOKEN
 
         self.add_routes()
@@ -26,6 +31,7 @@ class DiscordBot:
         """
         @self.bot.event
         async def on_ready():
+            self.discord_channel = self.bot.get_channel(self.channel_id)
             logging.info(f'Logged in to Discord as {self.bot.user.name}')
 
         @self.bot.event

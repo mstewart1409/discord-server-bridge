@@ -9,7 +9,7 @@ class Config(object):
     DISCORD_TOKEN = config('DISCORD_TOKEN')
     SERVER_KEY = config('SERVER_KEY')
     SERVER_ENDPOINT = config('SERVER_ENDPOINT')
-    DISCORD_CHANNEL_ID = config('DISCORD_CHANNEL_ID')
+    DISCORD_CHANNEL_ID = int(config('DISCORD_CHANNEL_ID'))
     SQLALCHEMY_DATABASE_URI = '{}://{}:{}@{}:{}/{}'.format(
         config('DB_ENGINE', default='postgresql'),
         config('DB_USERNAME', default='root'),

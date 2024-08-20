@@ -1,3 +1,4 @@
+import pytz
 from discord.message import Message as DiscordMessage
 from sqlalchemy import Column, Integer, String, BigInteger, DateTime, Boolean
 from database import Base, session
@@ -22,15 +23,15 @@ class Message(Base):
         if isinstance(data, DiscordMessage):
             self.from_discord(data)
         else:
-            self.id = data['id']
+            self.id = data['id'] if 'id' in data else None
             self.channel_id = data['channel_id']
-            self.discord_message_id = data['discord_message_id']
-            self.user_id = data['user_id']
-            self.discord_user_id = data['discord_user_id']
-            self.text = data['text']
-            self.hidden = data['hidden']
-            self.created_at = data['created_at']
-            self.last_updated = data['last_updated']
+            self.discord_message_id = data['discord_message_id'] if 'discord_message_id' in data else None
+            self.user_id = data['user_id'] if 'user_id' in data else None
+            self.discord_user_id = data['discord_user_id'] if 'discord_user_id' in data else None
+            self.text = data['text'] if 'text' in data else ''
+            self.hidden = data['hidden'] if 'hidden' in data else False
+            self.created_at = data['created_at'] if 'created_at' in data else datetime.now(pytz.UTC)
+            self.last_updated = data['last_updated'] if 'last_updated' in data else datetime.now(pytz.UTC)
 
     def from_discord(self, data: DiscordMessage):
         self.discord_message_id = data.id
@@ -60,7 +61,6 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True)
-    discord_id = Column(Integer, nullable=False)
     display_name = Column(String, nullable=False)
 
     def __repr__(self):

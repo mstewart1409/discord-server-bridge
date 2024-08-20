@@ -5,9 +5,12 @@ import re
 import time
 from datetime import datetime, timedelta, date
 
+import psycopg2
 import pytz
 import socketio
 from discord.message import Message as DiscordMessage
+from discord import Embed
+from functools import wraps
 from werkzeug.security import generate_password_hash
 from sqlalchemy.exc import SQLAlchemyError
 from discord_bot import DiscordBot
@@ -55,7 +58,6 @@ class Server:
         self.key = config.SERVER_KEY
         self.config = config
         self.discord_bot = None
-        self.discord_channel = None
         self.loop = asyncio.get_event_loop()
 
         self.add_routes()
@@ -67,7 +69,7 @@ class Server:
             discord_bot: Discord bot
         """
         self.discord_bot = discord_bot
-        self.discord_channel = self.discord_bot.bot.get_channel(self.config.DISCORD_CHANNEL_ID)
+        print('f')
 
     def add_routes(self):
         """
@@ -84,6 +86,35 @@ class Server:
             else:
                 logging.error(f'Unknown message type: {data["type"]}')
 
+    @staticmethod
+    def handle_connection_error(f):
+        @wraps(f)
+        def wrap(*args, **kwargs):
+            self = args[0]
+            retries = 0
+            error = ValueError('Connection error')
+            while retries < 3:
+                try:
+                    return f(*args, **kwargs)
+                except SQLAlchemyError as e:
+                    error = e
+                    self.session.rollback()
+                    retries += 1
+                except psycopg2.OperationalError as e:
+                    error = e
+                    self.session.rollback()
+                    retries += 1
+            raise error
+        return wrap
+
+    @staticmethod
+    def create_embed(title, description):
+        return Embed(
+            title=title,
+            description=description,
+        )
+
+    @handle_connection_error
     def handle_server_message(self, data: dict):
         """
         Forward the message to discord
@@ -92,31 +123,36 @@ class Server:
         """
         message = Message(data['message'])
         user = self.session.query(User).filter_by(id=message.user_id).first()
-        discord_message = self.loop.run_until_complete(self.discord_channel.send(
-            f'{user.display_name}: {message.text}'))
+
+        discord_message = self.loop.run_until_complete(self.discord_bot.discord_channel.send(
+            embed=self.create_embed(user.display_name, message.text)))
 
         # Update discord response on server
         message.discord_message_id = discord_message.id
+        message.discord_user_id = discord_message.author.id
         self.session.add(message)
         self.session.commit()
 
+        self.socketio.emit('chat-message', {'type': 'new-message', 'message': message}, self.namespace)
+
         logging.info(f'Server message forwarded to Discord: {message.text}')
 
+    @handle_connection_error
     def handle_server_message_edited(self, data: dict):
         """
         Edit the message on discord
         Args:
             data: Payload from server
         """
-        before_message = Message(data['before_message'])
+        before_message = self.session.query(Message).filter_by(id=data['before_message']['id']).first()
         after_message = Message(data['after_message'])
         user = self.session.query(User).filter_by(id=before_message.user_id).first()
 
-        discord_message = self.loop.run_until_complete(self.discord_channel.fetch_message(
+        discord_message = self.loop.run_until_complete(self.discord_bot.discord_channel.fetch_message(
             before_message.discord_message_id))
 
         edited_message = self.loop.run_until_complete(discord_message.edit(
-            content=f'{user.display_name}: {after_message.text}'))
+            embed=self.create_embed(user.display_name, after_message.text)))
 
         # Update discord response on server
         before_message.hidden = True
@@ -127,30 +163,32 @@ class Server:
         self.session.add(after_message)
         self.session.commit()
 
-        logging.info(
-            f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.text}')
+        self.socketio.emit('chat-message', {'type': 'edit-message', 'before_message': before_message,
+                                            'after_message': after_message}, self.namespace)
 
+        logging.info(
+            f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.id}')
+
+    @handle_connection_error
     def handle_server_message_deletion(self, data: dict):
         """
         Delete the message from discord
         Args:
             data: Payload from server
         """
-        try:
-            server_message = Message(data['message'])
-            discord_message = self.loop.run_until_complete(self.discord_channel.fetch_message(
-                server_message.discord_message_id))
+        server_message = self.session.query(Message).filter_by(id=data['message']['id']).first()
+        discord_message = self.loop.run_until_complete(self.discord_bot.discord_channel.fetch_message(
+            server_message.discord_message_id))
 
-            self.loop.run_until_complete(discord_message.delete())
+        self.loop.run_until_complete(discord_message.delete())
 
-            # Remove from server
-            server_message.hidden = True
-            self.session.commit()
+        # Remove from server
+        server_message.hidden = True
+        self.session.commit()
 
-            logging.info(f'Discord message deleted following deletion from server: {discord_message.content}')
-        except SQLAlchemyError:
-            self.session.rollback()
-            raise
+        self.socketio.emit('chat-message', {'type': 'delete-message', 'message': server_message}, self.namespace)
+
+        logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
 
     def start(self):
         """
@@ -173,6 +211,7 @@ class Server:
                 logging.error('Error in connection to Server..')
                 logging.error(repr(e))
 
+    @handle_connection_error
     def send_to_server(self, data: DiscordMessage):
         """
         Send the message to the server
@@ -180,16 +219,13 @@ class Server:
             data: DiscordMessage
         """
         # Send the message to the server
-        try:
-            msg = Message(data)
-            self.session.add(msg)
-            self.session.commit()
+        msg = Message(data)
+        self.session.add(msg)
+        self.session.commit()
 
-            self.socketio.emit('chat-message', {'type': 'new-message', 'message': msg}, self.namespace)
-        except SQLAlchemyError:
-            self.session.rollback()
-            raise
+        self.socketio.emit('chat-message', {'type': 'new-message', 'message': msg}, self.namespace)
 
+    @handle_connection_error
     def edit_message_text(self, before_msg: DiscordMessage, after_msg: DiscordMessage):
         """
         Edit the message on the server
@@ -198,23 +234,20 @@ class Server:
             after_msg: DiscordMessage
         """
         # Edit the message on the server
-        try:
-            server_msg = self.session.query(Message).filter_by(discord_message_id=before_msg.id, hidden=False).first()
-            server_msg.hidden = True
-            server_msg.last_updated = datetime.now(pytz.UTC)
+        server_msg = self.session.query(Message).filter_by(discord_message_id=before_msg.id, hidden=False).first()
+        server_msg.hidden = True
+        server_msg.last_updated = datetime.now(pytz.UTC)
 
-            new_server_msg = Message(after_msg)
-            new_server_msg.user_id = server_msg.user_id
-            new_server_msg.created_at = server_msg.created_at
-            self.session.add(new_server_msg)
-            self.session.commit()
+        new_server_msg = Message(after_msg)
+        new_server_msg.user_id = server_msg.user_id
+        new_server_msg.created_at = server_msg.created_at
+        self.session.add(new_server_msg)
+        self.session.commit()
 
-            self.socketio.emit('chat-message', {'type': 'edit-message', 'before_message': server_msg,
-                                                'after_message': new_server_msg}, self.namespace)
-        except SQLAlchemyError:
-            self.session.rollback()
-            raise
+        self.socketio.emit('chat-message', {'type': 'edit-message', 'before_message': server_msg,
+                                            'after_message': new_server_msg}, self.namespace)
 
+    @handle_connection_error
     def delete_message(self, message: DiscordMessage):
         """
         Delete the message on the server
@@ -222,12 +255,8 @@ class Server:
             message: DiscordMessage
         """
         # Delete the message on the server
-        try:
-            server_msg = self.session.query(Message).filter_by(discord_message_id=message.id, hidden=False).first()
-            server_msg.hidden = True
-            self.session.commit()
+        server_msg = self.session.query(Message).filter_by(discord_message_id=message.id, hidden=False).first()
+        server_msg.hidden = True
+        self.session.commit()
 
-            self.socketio.emit('chat-message', {'type': 'delete-message', 'message': server_msg}, self.namespace)
-        except SQLAlchemyError:
-            self.session.rollback()
-            raise
+        self.socketio.emit('chat-message', {'type': 'delete-message', 'message': server_msg}, self.namespace)
