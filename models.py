@@ -1,6 +1,6 @@
 import pytz
 from discord.message import Message as DiscordMessage
-from sqlalchemy import Column, Integer, String, BigInteger, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, BigInteger, DateTime, Boolean, Index
 from database import Base, session
 from datetime import datetime
 
@@ -9,14 +9,18 @@ class Message(Base):
     __tablename__ = 'chat_messages'
 
     id = Column(Integer, primary_key=True)
-    channel_id = Column(BigInteger, nullable=False)
-    discord_message_id = Column(BigInteger)
-    user_id = Column(Integer)
+    channel_id = Column(BigInteger, nullable=False, index=True)
+    discord_message_id = Column(BigInteger, index=True)
+    user_id = Column(Integer, index=True)
     discord_user_id = Column(BigInteger)
     text = Column(String, nullable=False)
-    hidden = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    last_updated = Column(DateTime(timezone=True), default=datetime.utcnow)
+    hidden = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    last_updated = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('ix_channel_id_hidden', 'channel_id', 'hidden'),
+    )
 
     def __init__(self, data):
         super().__init__()
