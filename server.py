@@ -53,6 +53,7 @@ class Server:
                                         json=CustomJSONEncodeDecode)
         self.session = session
         self.namespace = '/feed'
+        self.channel_id = config.SERVER_CHANNEL_ID
         self.connected = False
         self.endpoint = config.SERVER_ENDPOINT
         self.key = config.SERVER_KEY
@@ -134,7 +135,7 @@ class Server:
         self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'new-message',
-                                            'channel_id': self.discord_bot.channel_id,
+                                            'channel_id': self.channel_id,
                                             'message': message}, self.namespace)
 
         logging.info(f'Server message forwarded to Discord: {message.text}')
@@ -165,7 +166,7 @@ class Server:
         self.session.add(after_message)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': self.discord_bot.channel_id,
+        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': self.channel_id,
                                             'before_message': before_message,
                                             'after_message': after_message}, self.namespace)
 
@@ -190,7 +191,7 @@ class Server:
         self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'delete-message',
-                                            'channel_id': self.discord_bot.channel_id,
+                                            'channel_id': self.channel_id,
                                             'message': server_message}, self.namespace)
 
         logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
@@ -224,12 +225,12 @@ class Server:
             data: DiscordMessage
         """
         # Send the message to the server
-        msg = Message(data)
+        msg = Message(data, self.channel_id)
         self.session.add(msg)
         self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'new-message',
-                                            'channel_id': self.discord_bot.channel_id, 'message': msg}, self.namespace)
+                                            'channel_id': self.channel_id, 'message': msg}, self.namespace)
 
     @handle_connection_error
     def edit_message_text(self, before_msg: DiscordMessage, after_msg: DiscordMessage):
@@ -244,13 +245,13 @@ class Server:
         server_msg.hidden = True
         server_msg.last_updated = datetime.now(pytz.UTC)
 
-        new_server_msg = Message(after_msg)
+        new_server_msg = Message(after_msg, self.channel_id)
         new_server_msg.user_id = server_msg.user_id
         new_server_msg.created_at = server_msg.created_at
         self.session.add(new_server_msg)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': self.discord_bot.channel_id,
+        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': self.channel_id,
                                             'before_message': server_msg,
                                             'after_message': new_server_msg}, self.namespace)
 
@@ -267,5 +268,5 @@ class Server:
         self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'delete-message',
-                                            'channel_id': self.discord_bot.channel_id,
+                                            'channel_id': self.channel_id,
                                             'message': server_msg}, self.namespace)

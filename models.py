@@ -1,6 +1,6 @@
 import pytz
 from discord.message import Message as DiscordMessage
-from sqlalchemy import Column, Integer, String, BigInteger, DateTime, Boolean, Index
+from sqlalchemy import Column, Integer, String, BigInteger, DateTime, Boolean, Index, ForeignKey
 from database import Base, session
 from datetime import datetime
 
@@ -9,7 +9,7 @@ class Message(Base):
     __tablename__ = 'chat_messages'
 
     id = Column(Integer, primary_key=True)
-    channel_id = Column(BigInteger, nullable=False, index=True)
+    channel_id = Column(Integer, nullable=False, index=True)
     discord_message_id = Column(BigInteger, index=True)
     user_id = Column(Integer, index=True)
     discord_user_id = Column(BigInteger)
@@ -22,10 +22,12 @@ class Message(Base):
         Index('ix_channel_id_hidden', 'channel_id', 'hidden'),
     )
 
-    def __init__(self, data):
+    def __init__(self, data, server_channel_id=None):
         super().__init__()
         if isinstance(data, DiscordMessage):
-            self.from_discord(data)
+            if server_channel_id is None:
+                raise ValueError('server_channel_id is required when creating a Message from a DiscordMessage')
+            self.from_discord(data, server_channel_id)
         else:
             self.id = data['id'] if 'id' in data else None
             self.channel_id = data['channel_id']
@@ -37,11 +39,11 @@ class Message(Base):
             self.created_at = data['created_at'] if 'created_at' in data else datetime.now(pytz.UTC)
             self.last_updated = data['last_updated'] if 'last_updated' in data else datetime.now(pytz.UTC)
 
-    def from_discord(self, data: DiscordMessage):
+    def from_discord(self, data: DiscordMessage, server_channel_id):
         self.discord_message_id = data.id
         self.discord_user_id = data.author.id
         self.text = data.content
-        self.channel_id = data.channel.id
+        self.channel_id = server_channel_id
         self.user_id = None
 
     def to_dict(self):
