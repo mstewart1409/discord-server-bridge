@@ -1,5 +1,8 @@
 [tool.poetry]
 name = "discord-server-bridge"
+packages = [
+    {include = "dsbridge"}
+]
 version = "0.1.0"
 description = ""
 authors = ["Michael <m.n.stewart@live.co.uk>"]

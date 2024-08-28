@@ -35,7 +35,7 @@ WORKDIR /app
 
 # Change user
 RUN useradd -m -r user && \
-    chown user /app
+    chown user /dsbridge
 
 COPY ./poetry.lock ./pyproject.toml /app/
 
@@ -46,5 +46,5 @@ COPY . /app/
 
 USER user
 
-# Run app
+# Run dsbridge
 CMD ["python", "main.py"]

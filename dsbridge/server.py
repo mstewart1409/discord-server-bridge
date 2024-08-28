@@ -13,11 +13,11 @@ from discord import Embed
 from functools import wraps
 from werkzeug.security import generate_password_hash
 from sqlalchemy.exc import SQLAlchemyError
-from discord_bot import DiscordBot
+from dsbridge.discord_bot import DiscordBot
 
-from database import session
-from models import Message
-from models import User
+from dsbridge.database import session
+from dsbridge.models import Message
+from dsbridge.models import User
 
 
 class CustomJSONEncodeDecode:
@@ -53,7 +53,6 @@ class Server:
                                         json=CustomJSONEncodeDecode)
         self.session = session
         self.namespace = '/feed'
-        self.channel_id = config.SERVER_CHANNEL_ID
         self.connected = False
         self.endpoint = config.SERVER_ENDPOINT
         self.key = config.SERVER_KEY
@@ -135,7 +134,7 @@ class Server:
         self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'new-message',
-                                            'channel_id': self.channel_id,
+                                            'channel_id': message.channel_id,
                                             'message': message}, self.namespace)
 
         logging.info(f'Server message forwarded to Discord: {message.text}')
@@ -166,7 +165,7 @@ class Server:
         self.session.add(after_message)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': self.channel_id,
+        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': after_message.channel_id,
                                             'before_message': before_message,
                                             'after_message': after_message}, self.namespace)
 
@@ -191,7 +190,7 @@ class Server:
         self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'delete-message',
-                                            'channel_id': self.channel_id,
+                                            'channel_id': server_message.channel_id,
                                             'message': server_message}, self.namespace)
 
         logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
@@ -225,12 +224,12 @@ class Server:
             data: DiscordMessage
         """
         # Send the message to the server
-        msg = Message(data, self.channel_id)
+        msg = Message(data, data.channel.id)
         self.session.add(msg)
         self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'new-message',
-                                            'channel_id': self.channel_id, 'message': msg}, self.namespace)
+                                            'channel_id': data.channel.id, 'message': msg}, self.namespace)
 
     @handle_connection_error
     def edit_message_text(self, before_msg: DiscordMessage, after_msg: DiscordMessage):
@@ -245,13 +244,13 @@ class Server:
         server_msg.hidden = True
         server_msg.last_updated = datetime.now(pytz.UTC)
 
-        new_server_msg = Message(after_msg, self.channel_id)
+        new_server_msg = Message(after_msg, after_msg.channel.id)
         new_server_msg.user_id = server_msg.user_id
         new_server_msg.created_at = server_msg.created_at
         self.session.add(new_server_msg)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': self.channel_id,
+        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': after_msg.channel.id,
                                             'before_message': server_msg,
                                             'after_message': new_server_msg}, self.namespace)
 
@@ -268,5 +267,5 @@ class Server:
         self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'delete-message',
-                                            'channel_id': self.channel_id,
+                                            'channel_id': message.channel.id,
                                             'message': server_msg}, self.namespace)

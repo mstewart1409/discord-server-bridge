@@ -1,7 +1,7 @@
 import pytz
 from discord.message import Message as DiscordMessage
 from sqlalchemy import Column, Integer, String, BigInteger, DateTime, Boolean, Index, ForeignKey
-from database import Base, session
+from dsbridge.database import Base, session
 from datetime import datetime
 
 

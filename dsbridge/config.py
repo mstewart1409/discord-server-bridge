@@ -10,7 +10,6 @@ class Config(object):
     SERVER_KEY = config('SERVER_KEY')
     SERVER_ENDPOINT = config('SERVER_ENDPOINT')
     DISCORD_CHANNEL_ID = int(config('DISCORD_CHANNEL_ID'))
-    SERVER_CHANNEL_ID = int(config('SERVER_CHANNEL_ID'))
     SQLALCHEMY_DATABASE_URI = '{}://{}:{}@{}:{}/{}'.format(
         config('DB_ENGINE', default='postgresql'),
         config('DB_USERNAME', default='root'),

@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from config import app_config
+from dsbridge.config import app_config
 from sqlalchemy.orm import scoped_session
 
 
