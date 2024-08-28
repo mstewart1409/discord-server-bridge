@@ -3,7 +3,7 @@ name = "discord-server-bridge"
 packages = [
     {include = "dsbridge"}
 ]
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["Michael <m.n.stewart@live.co.uk>"]
 readme = "README.md"
