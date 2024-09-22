@@ -3,19 +3,22 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, timedelta, date
+from datetime import date
+from datetime import datetime
+from datetime import timedelta
+from functools import wraps
 
 import psycopg2
 import pytz
 import socketio
-from discord.message import Message as DiscordMessage
 from discord import Embed
-from functools import wraps
-from werkzeug.security import generate_password_hash
+from discord.message import Message as DiscordMessage
 from sqlalchemy.exc import SQLAlchemyError
-from dsbridge.discord_bot import DiscordBot
+from werkzeug.security import generate_password_hash
 
 from dsbridge.database import session
+from dsbridge.discord_bot import DiscordBot
+from dsbridge.models import ChatChannels
 from dsbridge.models import Message
 from dsbridge.models import User
 
@@ -31,7 +34,7 @@ class CustomJSONEncodeDecode:
 
     @staticmethod
     def object_jsonify(o):
-        if isinstance(o, Message):
+        if callable(getattr(o, 'to_dict', None)):
             return o.to_dict()
         elif isinstance(o, (datetime, date, timedelta)):
             return o.isoformat()
@@ -52,10 +55,10 @@ class Server:
         self.socketio = socketio.Client(reconnection=False, logger=False, engineio_logger=False,
                                         json=CustomJSONEncodeDecode)
         self.session = session
-        self.namespace = '/feed'
+        self.namespace = config.SERVER_NAMESPACE
         self.connected = False
-        self.endpoint = config.SERVER_ENDPOINT
-        self.key = config.SERVER_KEY
+        self.endpoint = config.HOST_URL
+        self.key = config.SERVER_SECRET_KEY
         self.config = config
         self.discord_bot = None
         self.loop = asyncio.get_event_loop()
@@ -78,11 +81,11 @@ class Server:
         @self.socketio.on('chat-message', namespace=self.namespace)
         def on_message(data):
             if data['type'] == 'new-message':
-                self.handle_server_message(data)
+                self.handle_server_message(data['message_id'])
             elif data['type'] == 'edit-message':
-                self.handle_server_message_edited(data)
+                self.handle_server_message_edited(data['message_id'])
             elif data['type'] == 'delete-message':
-                self.handle_server_message_deletion(data)
+                self.handle_server_message_deletion(data['message_id'])
             else:
                 logging.error(f'Unknown message type: {data["type"]}')
 
@@ -104,6 +107,11 @@ class Server:
                     error = e
                     self.session.rollback()
                     retries += 1
+                except BaseException as e:
+                    error = e
+                    self.session.rollback()
+                    retries += 1
+
             raise error
         return wrap
 
@@ -115,83 +123,82 @@ class Server:
         )
 
     @handle_connection_error
-    def handle_server_message(self, data: dict):
+    def handle_server_message(self, message_id: int):
         """
         Forward the message to discord
         Args:
-            data: Payload from server
+            message_id: Message ID from server
         """
-        message = Message(data['message'])
-        user = self.session.query(User).filter_by(id=message.user_id).first()
+        message = self.session.query(Message).filter_by(id=message_id).first()
 
-        discord_message = self.loop.run_until_complete(self.discord_bot.discord_channel.send(
-            embed=self.create_embed(user.display_name, message.text)))
+        discord_channel = self.discord_bot.get_channel(message.channel.discord_channel_id)
+        discord_message = self.loop.run_until_complete(discord_channel.send(
+            embed=self.create_embed(message.user.display_name, message.text)))
 
         # Update discord response on server
         message.discord_message_id = discord_message.id
-        message.discord_user_id = discord_message.author.id
-        self.session.add(message)
+        message.last_updated = datetime.now(pytz.UTC)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'new-message',
-                                            'channel_id': message.channel_id,
-                                            'message': message}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'new-message', 'message_id': message_id},
+                           self.namespace)
 
-        logging.info(f'Server message forwarded to Discord: {message.text}')
+        logging.info(f'Server message forwarded to Discord: {message.id}')
 
     @handle_connection_error
-    def handle_server_message_edited(self, data: dict):
+    def handle_server_message_edited(self, before_message_id: int, after_message_id: int):
         """
         Edit the message on discord
         Args:
-            data: Payload from server
+            before_message_id: Before message ID from server
+            after_message_id: After message ID from server
         """
-        before_message = self.session.query(Message).filter_by(id=data['before_message']['id']).first()
-        after_message = Message(data['after_message'])
-        user = self.session.query(User).filter_by(id=before_message.user_id).first()
+        before_message = self.session.query(Message).filter_by(id=before_message_id).first()
+        after_message = self.session.query(Message).filter_by(id=after_message_id).first()
 
-        discord_message = self.loop.run_until_complete(self.discord_bot.discord_channel.fetch_message(
-            before_message.discord_message_id))
+        discord_channel = self.discord_bot.get_channel(before_message.channel.discord_channel_id)
+        discord_message = self.loop.run_until_complete(discord_channel.fetch_message(before_message.discord_message_id))
 
         edited_message = self.loop.run_until_complete(discord_message.edit(
-            embed=self.create_embed(user.display_name, after_message.text)))
+            embed=self.create_embed(before_message.user.display_name, after_message.text)))
 
         # Update discord response on server
         before_message.hidden = True
         before_message.last_updated = datetime.now(pytz.UTC)
 
         after_message.discord_message_id = edited_message.id
-        after_message.created_at = before_message.created_at
-        self.session.add(after_message)
+        after_message.last_updated = datetime.now(pytz.UTC)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': after_message.channel_id,
-                                            'before_message': before_message,
-                                            'after_message': after_message}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'edit-message',
+                                            'before_message_id': before_message_id,
+                                            'after_message_id': after_message_id},
+                           self.namespace)
 
         logging.info(
             f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.id}')
 
     @handle_connection_error
-    def handle_server_message_deletion(self, data: dict):
+    def handle_server_message_deletion(self, message_id: int):
         """
         Delete the message from discord
         Args:
-            data: Payload from server
+            message_id: Message ID from server
         """
-        server_message = self.session.query(Message).filter_by(id=data['message']['id']).first()
-        discord_message = self.loop.run_until_complete(self.discord_bot.discord_channel.fetch_message(
-            server_message.discord_message_id))
+        message = self.session.query(Message).filter_by(id=message_id).first()
+
+        discord_channel = self.discord_bot.get_channel(message.channel.discord_channel_id)
+        discord_message = self.loop.run_until_complete(discord_channel.fetch_message(message.discord_message_id))
 
         self.loop.run_until_complete(discord_message.delete())
 
         # Remove from server
-        server_message.hidden = True
+        message.hidden = True
+        message.last_updated = datetime.now(pytz.UTC)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'delete-message',
-                                            'channel_id': server_message.channel_id,
-                                            'message': server_message}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': message_id},
+                           self.namespace)
 
         logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
 
@@ -200,7 +207,7 @@ class Server:
         Start the connection to the server
         """
         timestamp = str(datetime.now(pytz.UTC).timestamp())
-        hash_k = generate_password_hash(self.config.SERVER_KEY + timestamp, method='pbkdf2')
+        hash_k = generate_password_hash(self.config.SERVER_SECRET_KEY + timestamp, method='pbkdf2')
         headers = {'Authorization': hash_k, 'Timestamp': timestamp}
         while True:
             try:
@@ -224,12 +231,18 @@ class Server:
             data: DiscordMessage
         """
         # Send the message to the server
-        msg = Message(data, data.channel.id)
-        self.session.add(msg)
+        channel = self.session.query(ChatChannels).filter_by(discord_channel_id=data.channel.id).first()
+        if channel is None:
+            channel = ChatChannels(discord_channel_id=data.channel.id)
+            self.session.add(channel)
+            self.session.commit()
+
+        message = Message(data, channel)
+        self.session.add(message)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'new-message',
-                                            'channel_id': data.channel.id, 'message': msg}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'new-message', 'message_id': message.id},
+                           self.namespace)
 
     @handle_connection_error
     def edit_message_text(self, before_msg: DiscordMessage, after_msg: DiscordMessage):
@@ -240,19 +253,21 @@ class Server:
             after_msg: DiscordMessage
         """
         # Edit the message on the server
-        server_msg = self.session.query(Message).filter_by(discord_message_id=before_msg.id, hidden=False).first()
-        server_msg.hidden = True
-        server_msg.last_updated = datetime.now(pytz.UTC)
+        channel = self.session.query(ChatChannels).filter_by(discord_channel_id=before_msg.channel.id).first()
+        before_server_message = self.session.query(Message).filter_by(discord_message_id=before_msg.id, hidden=False).first()
+        before_server_message.hidden = True
+        before_server_message.last_updated = datetime.now(pytz.UTC)
 
-        new_server_msg = Message(after_msg, after_msg.channel.id)
-        new_server_msg.user_id = server_msg.user_id
-        new_server_msg.created_at = server_msg.created_at
-        self.session.add(new_server_msg)
+        after_server_message = Message(after_msg, channel)
+        after_server_message.user_id = before_server_message.user_id
+        after_server_message.created_at = before_server_message.created_at
+        self.session.add(after_server_message)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'edit-message', 'channel_id': after_msg.channel.id,
-                                            'before_message': server_msg,
-                                            'after_message': new_server_msg}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'edit-message',
+                                            'before_message_id': before_server_message.id,
+                                            'after_message_id': after_server_message.id},
+                           self.namespace)
 
     @handle_connection_error
     def delete_message(self, message: DiscordMessage):
@@ -264,8 +279,8 @@ class Server:
         # Delete the message on the server
         server_msg = self.session.query(Message).filter_by(discord_message_id=message.id, hidden=False).first()
         server_msg.hidden = True
+        server_msg.last_updated = datetime.now(pytz.UTC)
         self.session.commit()
 
-        self.socketio.emit('chat-message', {'type': 'delete-message',
-                                            'channel_id': message.channel.id,
-                                            'message': server_msg}, self.namespace)
+        self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': server_msg.id},
+                           self.namespace)

@@ -1,7 +1,8 @@
+import logging
+
+import discord
 from discord.ext import commands
 from discord.message import Message as DiscordMessage
-import discord
-import logging
 
 
 class DiscordBot:
@@ -11,8 +12,6 @@ class DiscordBot:
         intents.guilds = True
         self.bot = commands.Bot(command_prefix='!', intents=intents)
         self.server_bot = None
-        self.discord_channel = None
-        self.channel_id = config.DISCORD_CHANNEL_ID
         self.token = config.DISCORD_TOKEN
 
         self.add_routes()
@@ -31,7 +30,6 @@ class DiscordBot:
         """
         @self.bot.event
         async def on_ready():
-            self.discord_channel = self.bot.get_channel(self.channel_id)
             logging.info(f'Logged in to Discord as {self.bot.user.name}')
 
         @self.bot.event
@@ -52,6 +50,9 @@ class DiscordBot:
         async def on_message_delete(message: DiscordMessage):
             self.server_bot.delete_message(message)
             logging.info(f'Server message deleted following deletion from Discord: {message.id}')
+
+    def get_channel(self, channel_id):
+        return self.bot.get_channel(channel_id)
 
     def start(self):
         """
