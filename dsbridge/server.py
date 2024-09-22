@@ -131,14 +131,15 @@ class Server:
         """
         message = self.session.query(Message).filter_by(id=message_id).first()
 
-        discord_channel = self.discord_bot.get_channel(message.channel.discord_channel_id)
-        discord_message = self.loop.run_until_complete(discord_channel.send(
-            embed=self.create_embed(message.user.display_name, message.text)))
+        if message.channel.discord_channel_id is not None:
+            discord_channel = self.discord_bot.get_channel(message.channel.discord_channel_id)
+            discord_message = self.loop.run_until_complete(discord_channel.send(
+                embed=self.create_embed(message.user.display_name, message.text)))
 
-        # Update discord response on server
-        message.discord_message_id = discord_message.id
-        message.last_updated = datetime.now(pytz.UTC)
-        self.session.commit()
+            # Update discord response on server
+            message.discord_message_id = discord_message.id
+            message.last_updated = datetime.now(pytz.UTC)
+            self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'new-message', 'message_id': message_id},
                            self.namespace)
@@ -156,19 +157,20 @@ class Server:
         before_message = self.session.query(Message).filter_by(id=before_message_id).first()
         after_message = self.session.query(Message).filter_by(id=after_message_id).first()
 
-        discord_channel = self.discord_bot.get_channel(before_message.channel.discord_channel_id)
-        discord_message = self.loop.run_until_complete(discord_channel.fetch_message(before_message.discord_message_id))
+        if before_message.channel.discord_channel_id is not None:
+            discord_channel = self.discord_bot.get_channel(before_message.channel.discord_channel_id)
+            discord_message = self.loop.run_until_complete(discord_channel.fetch_message(before_message.discord_message_id))
 
-        edited_message = self.loop.run_until_complete(discord_message.edit(
-            embed=self.create_embed(before_message.user.display_name, after_message.text)))
+            edited_message = self.loop.run_until_complete(discord_message.edit(
+                embed=self.create_embed(before_message.user.display_name, after_message.text)))
 
-        # Update discord response on server
-        before_message.hidden = True
-        before_message.last_updated = datetime.now(pytz.UTC)
+            # Update discord response on server
+            before_message.hidden = True
+            before_message.last_updated = datetime.now(pytz.UTC)
 
-        after_message.discord_message_id = edited_message.id
-        after_message.last_updated = datetime.now(pytz.UTC)
-        self.session.commit()
+            after_message.discord_message_id = edited_message.id
+            after_message.last_updated = datetime.now(pytz.UTC)
+            self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'edit-message',
                                             'before_message_id': before_message_id,
@@ -187,15 +189,16 @@ class Server:
         """
         message = self.session.query(Message).filter_by(id=message_id).first()
 
-        discord_channel = self.discord_bot.get_channel(message.channel.discord_channel_id)
-        discord_message = self.loop.run_until_complete(discord_channel.fetch_message(message.discord_message_id))
+        if message.channel.discord_channel_id is not None:
+            discord_channel = self.discord_bot.get_channel(message.channel.discord_channel_id)
+            discord_message = self.loop.run_until_complete(discord_channel.fetch_message(message.discord_message_id))
 
-        self.loop.run_until_complete(discord_message.delete())
+            self.loop.run_until_complete(discord_message.delete())
 
-        # Remove from server
-        message.hidden = True
-        message.last_updated = datetime.now(pytz.UTC)
-        self.session.commit()
+            # Remove from server
+            message.hidden = True
+            message.last_updated = datetime.now(pytz.UTC)
+            self.session.commit()
 
         self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': message_id},
                            self.namespace)
