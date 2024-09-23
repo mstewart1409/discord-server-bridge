@@ -1,16 +1,18 @@
+import asyncio
 import logging
 import threading
 
 from dsbridge.config import app_config
+from dsbridge.database import Base
+from dsbridge.database import engine
 from dsbridge.discord_bot import DiscordBot
 from dsbridge.server import Server
-from dsbridge.database import Base, engine
 
 # Initialize the server bot
-server_bot = Server(app_config)
+server_bot = Server(app_config, loop=asyncio.get_event_loop())
 
 # Initialize the Discord bot
-discord_bot = DiscordBot(app_config)
+discord_bot = DiscordBot(app_config, loop=server_bot.loop)
 
 server_bot.init_bot(discord_bot)
 discord_bot.init_bot(server_bot)

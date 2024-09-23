@@ -6,11 +6,11 @@ from discord.message import Message as DiscordMessage
 
 
 class DiscordBot:
-    def __init__(self, config):
+    def __init__(self, config, loop=None):
         intents = discord.Intents.default()
         intents.messages = True
         intents.guilds = True
-        self.bot = commands.Bot(command_prefix='!', intents=intents)
+        self.bot = commands.Bot(command_prefix='!', intents=intents, loop=loop)
         self.server_bot = None
         self.token = config.DISCORD_TOKEN
 

@@ -20,7 +20,6 @@ from dsbridge.database import session
 from dsbridge.discord_bot import DiscordBot
 from dsbridge.models import ChatChannels
 from dsbridge.models import Message
-from dsbridge.models import User
 
 
 class CustomJSONEncodeDecode:
@@ -51,7 +50,7 @@ class CustomJSONEncodeDecode:
 
 
 class Server:
-    def __init__(self, config):
+    def __init__(self, config, loop=None):
         self.socketio = socketio.Client(reconnection=False, logger=False, engineio_logger=False,
                                         json=CustomJSONEncodeDecode)
         self.session = session
@@ -61,7 +60,7 @@ class Server:
         self.key = config.SERVER_SECRET_KEY
         self.config = config
         self.discord_bot = None
-        self.loop = asyncio.new_event_loop()
+        self.loop = asyncio.get_event_loop() if loop is None else loop
 
         self.add_routes()
 
@@ -132,7 +131,6 @@ class Server:
         message = self.session.query(Message).filter_by(id=message_id).first()
 
         if message.channel.discord_channel_id is not None:
-            asyncio.set_event_loop(self.loop)
             discord_channel = self.discord_bot.get_channel(message.channel.discord_channel_id)
             discord_message = self.loop.run_until_complete(discord_channel.send(
                 embed=self.create_embed(message.user.display_name, message.text)))
@@ -159,7 +157,6 @@ class Server:
         after_message = self.session.query(Message).filter_by(id=after_message_id).first()
 
         if before_message.channel.discord_channel_id is not None:
-            asyncio.set_event_loop(self.loop)
             discord_channel = self.discord_bot.get_channel(before_message.channel.discord_channel_id)
             discord_message = self.loop.run_until_complete(discord_channel.fetch_message(before_message.discord_message_id))
 
@@ -192,7 +189,6 @@ class Server:
         message = self.session.query(Message).filter_by(id=message_id).first()
 
         if message.channel.discord_channel_id is not None:
-            asyncio.set_event_loop(self.loop)
             discord_channel = self.discord_bot.get_channel(message.channel.discord_channel_id)
             discord_message = self.loop.run_until_complete(discord_channel.fetch_message(message.discord_message_id))
 
