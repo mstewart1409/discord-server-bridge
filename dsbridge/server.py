@@ -204,10 +204,12 @@ class Server:
 
         logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
 
-    def start(self):
+    async def start(self):
         """
         Start the connection to the server
         """
+        logging.info('Starting Server Bot')
+
         timestamp = str(datetime.now(pytz.UTC).timestamp())
         hash_k = generate_password_hash(self.config.SERVER_SECRET_KEY + timestamp, method='pbkdf2')
         headers = {'Authorization': hash_k, 'Timestamp': timestamp}
@@ -219,11 +221,12 @@ class Server:
                 self.socketio.wait()
                 self.connected = False
                 logging.info('Disconnected from Server')
-                time.sleep(2)
             except Exception as e:
                 self.connected = False
                 logging.error('Error in connection to Server..')
                 logging.error(repr(e))
+            finally:
+                await asyncio.sleep(2)
 
     @handle_connection_error
     def send_to_server(self, data: DiscordMessage):

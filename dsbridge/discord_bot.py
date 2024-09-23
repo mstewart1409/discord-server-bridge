@@ -54,11 +54,12 @@ class DiscordBot:
     def get_channel(self, channel_id):
         return self.bot.get_channel(channel_id)
 
-    def start(self):
+    async def start(self):
         """
         Start the discord bot
         """
-        self.bot.run(self.token, reconnect=True)
+        logging.info('Starting Discord Bot')
+        await self.bot.start(self.token, bot=True, reconnect=True)
 
     # decorator for discord bot event handlers
     def discord_bot_handler(self, func):
