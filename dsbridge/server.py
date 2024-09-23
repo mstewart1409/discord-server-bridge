@@ -214,7 +214,7 @@ class Server:
         headers = {'Authorization': hash_k, 'Timestamp': timestamp}
         while True:
             try:
-                self.socketio.connect(self.endpoint, headers=headers, namespaces=[self.namespace])
+                self.socketio.connect('https://' + self.endpoint, headers=headers, namespaces=[self.namespace])
                 logging.info('Connected to Server')
                 self.connected = True
                 self.socketio.wait()
