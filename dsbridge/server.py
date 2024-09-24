@@ -211,7 +211,7 @@ class Server:
         headers = {'Authorization': hash_k, 'Timestamp': timestamp}
 
         try:
-            await self.socketio.connect('http://' + self.endpoint, headers=headers, namespaces=[self.namespace])
+            await self.socketio.connect('https://' + self.endpoint, headers=headers, namespaces=[self.namespace])
         except Exception as e:
             self.connected = False
             logging.error('Error in connection to Server..')
