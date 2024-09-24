@@ -4,13 +4,15 @@ import discord
 from discord.ext import commands
 from discord.message import Message as DiscordMessage
 
+import dsbridge.utils as utils
+
 
 class DiscordBot:
-    def __init__(self, config, loop=None):
+    def __init__(self, config):
         intents = discord.Intents.default()
         intents.messages = True
         intents.guilds = True
-        self.bot = commands.Bot(command_prefix='!', intents=intents, loop=loop)
+        self.bot = commands.Bot(command_prefix='!', intents=intents)
         self.server_bot = None
         self.token = config.DISCORD_TOKEN
 
@@ -35,24 +37,26 @@ class DiscordBot:
         @self.bot.event
         @self.discord_bot_handler
         async def on_message(message: DiscordMessage):
-            # Forward the message to the server
-            self.server_bot.send_to_server(message)
-            logging.info(f'Discord message forwarded to server: {message.id}')
+            sanitized_message = utils.sanitize_input(message.content)
+            if sanitized_message != message.content:
+                await message.delete()
+                logging.info(f'Discord message deleted due to sanitization: {message.id}')
+            else:
+                # Forward the message to the server
+                await self.server_bot.send_to_server(message)
+                logging.info(f'Discord message forwarded to server: {message.id}')
 
         @self.bot.event
         @self.discord_bot_handler
         async def on_message_edit(before_msg: DiscordMessage, after_msg: DiscordMessage):
-            self.server_bot.edit_message_text(before_msg, after_msg)
+            await self.server_bot.edit_message_text(before_msg, after_msg)
             logging.info(f'Server message ID: {before_msg.id} edited following edit in Discord: {after_msg.id}')
 
         @self.bot.event
         @self.discord_bot_handler
         async def on_message_delete(message: DiscordMessage):
-            self.server_bot.delete_message(message)
+            await self.server_bot.delete_message(message)
             logging.info(f'Server message deleted following deletion from Discord: {message.id}')
-
-    def get_channel(self, channel_id):
-        return self.bot.get_channel(channel_id)
 
     async def start(self):
         """

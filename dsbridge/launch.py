@@ -11,12 +11,11 @@ from dsbridge.server import Server
 async def runner():
     logging.info('Starting DSBridge')
 
-    loop = asyncio.get_event_loop()
-    # Initialize the server bot with the current event loop
-    server_bot = Server(app_config, loop=loop)
+    # Initialize the server bot
+    server_bot = Server(app_config)
 
-    # Initialize the Discord bot with the same event loop
-    discord_bot = DiscordBot(app_config, loop=loop)
+    # Initialize the Discord bot
+    discord_bot = DiscordBot(app_config)
 
     server_bot.init_bot(discord_bot)
     discord_bot.init_bot(server_bot)
