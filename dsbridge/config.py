@@ -6,6 +6,8 @@ from decouple import config
 class Config(object):
     @staticmethod
     def import_txt_as_list(filename):
+        print('Current working directory:', os.getcwd())
+        print('Files in current working directory:', os.listdir())
         with open(filename, 'r') as file:
             return [line.strip() for line in file.read().splitlines()]
 
