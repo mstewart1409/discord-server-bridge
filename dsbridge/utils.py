@@ -27,7 +27,17 @@ def remove_personal_info(message):
     return message
 
 
-def sanitize_input(user_input):
+def remove_words(input_string, banned_words):
+    # Create a pattern that matches any word in the list
+    pattern = r'\b(' + '|'.join(banned_words) + r')\b'
+
+    # Use re.sub to replace the words with an empty string
+    output_string = re.sub(pattern, '', input_string, flags=re.IGNORECASE)
+
+    return output_string
+
+
+def sanitize_input(user_input, banned_words):
     allowed_tags = []
     allowed_attributes = {}
     protocols = []
@@ -43,5 +53,6 @@ def sanitize_input(user_input):
 
     # Include custom sanitization
     sanitized_input = remove_personal_info(sanitized_input)
+    sanitized_input = remove_words(sanitized_input, banned_words)
 
     return sanitized_input

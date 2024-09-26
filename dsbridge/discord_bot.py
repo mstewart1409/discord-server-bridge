@@ -14,7 +14,7 @@ class DiscordBot:
         intents.guilds = True
         self.bot = commands.Bot(command_prefix='!', intents=intents)
         self.server_bot = None
-        self.token = config.DISCORD_TOKEN
+        self.config = config
 
         self.add_routes()
 
@@ -37,7 +37,7 @@ class DiscordBot:
         @self.bot.event
         @self.discord_bot_handler
         async def on_message(message: DiscordMessage):
-            sanitized_message = utils.sanitize_input(message.content)
+            sanitized_message = utils.sanitize_input(message.content, self.config.BANNED_WORDS)
             if sanitized_message != message.content:
                 await message.delete()
                 logging.info(f'Discord message deleted due to sanitization: {message.id}')
@@ -63,7 +63,7 @@ class DiscordBot:
         Start the discord bot
         """
         logging.info('Starting Discord Bot')
-        await self.bot.start(self.token, bot=True, reconnect=True)
+        await self.bot.start(self.config.DISCORD_TOKEN, bot=True, reconnect=True)
 
     # decorator for discord bot event handlers
     def discord_bot_handler(self, func):
