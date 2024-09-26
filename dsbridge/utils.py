@@ -32,7 +32,7 @@ def remove_words(input_string, banned_words):
     pattern = r'\b(' + '|'.join(banned_words) + r')\b'
 
     # Use re.sub to replace the words with an empty string
-    output_string = re.sub(pattern, '', input_string, flags=re.IGNORECASE)
+    output_string = re.sub(pattern, '[REMOVED]', input_string, flags=re.IGNORECASE)
 
     return output_string
 
