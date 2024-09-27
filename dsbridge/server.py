@@ -91,6 +91,12 @@ class Server:
             logging.info('Connected to server')
             self.connected = True
 
+        @self.socketio.on('disconnect', namespace=self.namespace)
+        async def on_disconnect():
+            logging.info('Disconnected from server')
+            self.connected = False
+            await self.start()
+
     @staticmethod
     def handle_connection_error(f):
         @wraps(f)
