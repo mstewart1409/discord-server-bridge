@@ -54,7 +54,6 @@ class Server:
                                              json=CustomJSONEncodeDecode)
         self.session = session
         self.namespace = config.SERVER_NAMESPACE
-        self.connected = False
         self.endpoint = config.HOST_URL
         self.key = config.SERVER_SECRET_KEY
         self.config = config
@@ -89,12 +88,10 @@ class Server:
         @self.socketio.on('connect', namespace=self.namespace)
         async def on_connect():
             logging.info('Connected to server')
-            self.connected = True
 
         @self.socketio.on('disconnect', namespace=self.namespace)
         async def on_disconnect():
             logging.info('Disconnected from server')
-            self.connected = False
             await self.start()
 
     @staticmethod
@@ -115,7 +112,7 @@ class Server:
                     error = e
                     self.session.rollback()
                     retries += 1
-                except BaseException as e:
+                except Exception as e:
                     error = e
                     self.session.rollback()
                     retries += 1
@@ -142,10 +139,10 @@ class Server:
             message.last_updated = datetime.now(pytz.UTC)
             self.session.commit()
 
-        await self.socketio.emit('chat-message', {'type': 'new-message', 'message_id': message_id},
-                                 self.namespace)
+            await self.socketio.emit('chat-message', {'type': 'new-message', 'message_id': message_id},
+                                     self.namespace)
 
-        logging.info(f'Server message forwarded to Discord: {message.id}')
+            logging.info(f'Server message forwarded to Discord: {message.id}')
 
     @handle_connection_error
     async def handle_server_message_edited(self, before_message_id: int, after_message_id: int):
@@ -173,13 +170,13 @@ class Server:
             after_message.last_updated = datetime.now(pytz.UTC)
             self.session.commit()
 
-        await self.socketio.emit('chat-message', {'type': 'edit-message',
-                                                  'before_message_id': before_message_id,
-                                                  'after_message_id': after_message_id},
-                                 self.namespace)
+            await self.socketio.emit('chat-message', {'type': 'edit-message',
+                                                      'before_message_id': before_message_id,
+                                                      'after_message_id': after_message_id},
+                                     self.namespace)
 
-        logging.info(
-            f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.id}')
+            logging.info(
+                f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.id}')
 
     @handle_connection_error
     async def handle_server_message_deletion(self, message_id: int):
@@ -201,27 +198,27 @@ class Server:
             message.last_updated = datetime.now(pytz.UTC)
             self.session.commit()
 
-        await self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': message_id},
-                                 self.namespace)
+            await self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': message_id},
+                                     self.namespace)
 
-        logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
+            logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
 
     async def start(self):
         """
         Start the connection to the server
         """
         logging.info('Starting Server Bot')
+        while True:
+            timestamp = str(datetime.now(pytz.UTC).timestamp())
+            hash_k = generate_password_hash(self.config.SERVER_SECRET_KEY + timestamp, method='pbkdf2')
+            headers = {'Authorization': hash_k, 'Timestamp': timestamp}
 
-        timestamp = str(datetime.now(pytz.UTC).timestamp())
-        hash_k = generate_password_hash(self.config.SERVER_SECRET_KEY + timestamp, method='pbkdf2')
-        headers = {'Authorization': hash_k, 'Timestamp': timestamp}
-
-        try:
-            await self.socketio.connect('https://' + self.endpoint, headers=headers, namespaces=[self.namespace])
-        except Exception as e:
-            self.connected = False
-            logging.error('Error in connection to Server..')
-            logging.error(repr(e))
+            try:
+                await self.socketio.connect('https://' + self.endpoint, headers=headers, namespaces=[self.namespace])
+            except Exception as e:
+                logging.error('Error in connection to Server..')
+                logging.error(repr(e))
+                await asyncio.sleep(5)
 
     @handle_connection_error
     async def send_to_server(self, data: DiscordMessage):
