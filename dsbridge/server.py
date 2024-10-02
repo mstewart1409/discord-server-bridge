@@ -92,7 +92,6 @@ class Server:
         @self.socketio.on('disconnect', namespace=self.namespace)
         async def on_disconnect():
             logging.info('Disconnected from server')
-            await self.start()
 
     @staticmethod
     def handle_connection_error(f):
@@ -215,6 +214,8 @@ class Server:
 
             try:
                 await self.socketio.connect('https://' + self.endpoint, headers=headers, namespaces=[self.namespace])
+                await self.socketio.wait()
+                logging.info('Connection to server closed..')
             except Exception as e:
                 logging.error('Error in connection to Server..')
                 logging.error(repr(e))
