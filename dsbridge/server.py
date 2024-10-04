@@ -103,17 +103,17 @@ class Server:
             while retries < 3:
                 try:
                     return f(*args, **kwargs)
-                except SQLAlchemyError as e:
+                except (SQLAlchemyError, psycopg2.OperationalError) as e:
                     error = e
                     self.session.rollback()
-                    retries += 1
-                except psycopg2.OperationalError as e:
-                    error = e
-                    self.session.rollback()
+                    self.session.close()
+                    self.session = session
                     retries += 1
                 except Exception as e:
                     error = e
                     self.session.rollback()
+                    self.session.close()
+                    self.session = session
                     retries += 1
 
             raise error
