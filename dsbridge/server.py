@@ -55,7 +55,7 @@ class Server:
         self.session = session
         self.namespace = config.SERVER_NAMESPACE
         self.endpoint = config.HOST_URL
-        self.key = config.SERVER_SECRET_KEY
+        self.key = config.APP_SECRET_KEY
         self.config = config
         self.discord_bot = None
 
@@ -209,7 +209,7 @@ class Server:
         logging.info('Starting Server Bot')
         while True:
             timestamp = str(datetime.now(pytz.UTC).timestamp())
-            hash_k = generate_password_hash(self.config.SERVER_SECRET_KEY + timestamp, method='pbkdf2')
+            hash_k = generate_password_hash(self.config.APP_SECRET_KEY + timestamp, method='pbkdf2')
             headers = {'Authorization': hash_k, 'Timestamp': timestamp}
 
             try:

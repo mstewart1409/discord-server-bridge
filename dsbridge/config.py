@@ -12,7 +12,7 @@ class Config(object):
     basedir = os.path.abspath(os.path.dirname(__file__))
 
     DISCORD_TOKEN = config('DISCORD_TOKEN')
-    SERVER_SECRET_KEY = config('SERVER_SECRET_KEY')
+    APP_SECRET_KEY = config('APP_SECRET_KEY')
     SERVER_NAMESPACE = config('SERVER_NAMESPACE')
     HOST_URL = config('HOST_URL')
     SQLALCHEMY_DATABASE_URI = '{}://{}:{}@{}:{}/{}'.format(
