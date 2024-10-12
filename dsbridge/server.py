@@ -157,7 +157,7 @@ class Server:
         after_message = self.session.query(Message).filter_by(id=after_message_id).first()
 
         if before_message.channel.discord_channel_id is not None:
-            discord_channel = self.discord_bot.get_channel(before_message.channel.discord_channel_id)
+            discord_channel = self.discord_bot.bot.get_channel(before_message.channel.discord_channel_id)
             discord_message = await discord_channel.fetch_message(before_message.discord_message_id)
 
             edited_message = await discord_message.edit(
@@ -189,7 +189,7 @@ class Server:
         message = self.session.query(Message).filter_by(id=message_id).first()
 
         if message.channel.discord_channel_id is not None:
-            discord_channel = self.discord_bot.get_channel(message.channel.discord_channel_id)
+            discord_channel = self.discord_bot.bot.get_channel(message.channel.discord_channel_id)
             discord_message = await discord_channel.fetch_message(message.discord_message_id)
 
             await discord_message.delete()
