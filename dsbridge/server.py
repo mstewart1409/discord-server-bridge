@@ -93,15 +93,16 @@ class Server:
         async def on_disconnect():
             logging.info('Disconnected from server')
 
-    def handle_connection_error(self, f):
+    @staticmethod
+    def handle_connection_error(f):
         @wraps(f)
-        async def wrap(*args, **kwargs):
+        async def wrap(self, *args, **kwargs):
             retries = 0
             error = None
             while retries < 3:
                 try:
                     await self.socketio.sleep(0)
-                    return await f(*args, **kwargs)
+                    return await f(self, *args, **kwargs)
                 except (SQLAlchemyError, psycopg2.OperationalError) as e:
                     error = e
                     await self.session.rollback()
