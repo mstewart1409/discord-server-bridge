@@ -11,7 +11,7 @@ def create_embed(title, description):
     )
 
 
-def remove_personal_info(message):
+def remove_personal_info(message, allowed_domain=None):
     patterns = {
         'email': r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
         'phone': r'\+?\d{1,3}?[-.\s]?\(?\d{1,4}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}',
@@ -22,7 +22,18 @@ def remove_personal_info(message):
     }
 
     for key, pattern in patterns.items():
-        message = re.sub(pattern, '[REMOVED]', message)
+        if key == 'email' and allowed_domain:
+            # Custom function to filter out emails from the allowed domain
+            def replace_email(match):
+                email = match.group(0)
+                domain = email.split('@')[-1]
+                if domain == allowed_domain:
+                    return email  # Don't replace if the domain matches the allowed one
+                return '[REMOVED]'
+
+            message = re.sub(pattern, replace_email, message)
+        else:
+            message = re.sub(pattern, '[REMOVED]', message)
 
     return message
 
@@ -37,7 +48,7 @@ def remove_words(input_string, banned_words):
     return output_string
 
 
-def sanitize_input(user_input, banned_words):
+def sanitize_input(user_input, banned_words, allowed_domain=None):
     allowed_tags = []
     allowed_attributes = {}
     protocols = []
@@ -52,7 +63,7 @@ def sanitize_input(user_input, banned_words):
     )
 
     # Include custom sanitization
-    sanitized_input = remove_personal_info(sanitized_input)
+    sanitized_input = remove_personal_info(sanitized_input, allowed_domain)
     sanitized_input = remove_words(sanitized_input, banned_words)
 
     return sanitized_input
