@@ -194,15 +194,15 @@ class Server:
 
             await discord_message.delete()
 
-            # Remove from server
-            message.hidden = True
-            message.last_updated = datetime.now(pytz.UTC)
-            self.session.commit()
+        # Remove from server
+        message.hidden = True
+        message.last_updated = datetime.now(pytz.UTC)
+        self.session.commit()
 
-            await self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': message_id},
-                                     self.namespace)
+        await self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': message_id},
+                                 self.namespace)
 
-            logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
+        logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
 
     async def start(self):
         """
