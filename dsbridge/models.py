@@ -23,6 +23,7 @@ class ChatChannels(Base):
     discord_channel_id = Column(BigInteger, index=True)
     public = Column(Boolean, nullable=False, default=False)
     closed = Column(Boolean, nullable=False, default=False)
+    email_notifs = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     last_updated = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
