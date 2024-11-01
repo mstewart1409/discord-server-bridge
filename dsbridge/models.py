@@ -1,6 +1,5 @@
 from datetime import datetime
 
-import pytz
 from discord.message import Message as DiscordMessage
 from sqlalchemy import BigInteger
 from sqlalchemy import Boolean
@@ -13,7 +12,6 @@ from sqlalchemy import String
 from sqlalchemy.orm import relationship
 
 from dsbridge.database import Base
-from dsbridge.database import session
 
 
 class ChatChannels(Base):
@@ -23,7 +21,6 @@ class ChatChannels(Base):
     discord_channel_id = Column(BigInteger, index=True)
     public = Column(Boolean, nullable=False, default=False)
     closed = Column(Boolean, nullable=False, default=False)
-    email_notifs = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     last_updated = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
