@@ -202,7 +202,7 @@ class Server:
         await self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': message_id},
                                  self.namespace)
 
-        logging.info(f'Discord message deleted following deletion from server: {discord_message.id}')
+        logging.info(f'Discord message deleted following deletion from server: {message.id}')
 
     async def start(self):
         """

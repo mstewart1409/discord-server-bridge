@@ -63,7 +63,7 @@ class DiscordBot:
         Start the discord bot
         """
         logging.info('Starting Discord Bot')
-        await self.bot.start(self.config.DISCORD_TOKEN, bot=True, reconnect=True)
+        await self.bot.start(self.config.DISCORD_TOKEN, reconnect=True)
 
     # decorator for discord bot event handlers
     def discord_bot_handler(self, func):
