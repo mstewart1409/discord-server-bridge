@@ -140,10 +140,10 @@ class Server:
             message.last_updated = datetime.now(pytz.UTC)
             self.session.commit()
 
-            await self.socketio.emit('chat-message', {'type': 'new-message', 'message_id': message_id},
-                                     self.namespace)
-
             logging.info(f'Server message forwarded to Discord: {message.id}')
+
+        await self.socketio.emit('chat-message', {'type': 'new-message', 'message_id': message_id},
+                                 self.namespace)
 
     @handle_connection_error
     async def handle_server_message_edited(self, before_message_id: int, after_message_id: int):
@@ -171,13 +171,13 @@ class Server:
             after_message.last_updated = datetime.now(pytz.UTC)
             self.session.commit()
 
-            await self.socketio.emit('chat-message', {'type': 'edit-message',
-                                                      'before_message_id': before_message_id,
-                                                      'after_message_id': after_message_id},
-                                     self.namespace)
-
             logging.info(
                 f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.id}')
+
+        await self.socketio.emit('chat-message', {'type': 'edit-message',
+                                                  'before_message_id': before_message_id,
+                                                  'after_message_id': after_message_id},
+                                 self.namespace)
 
     @handle_connection_error
     async def handle_server_message_deletion(self, message_id: int):
@@ -193,6 +193,7 @@ class Server:
             discord_message = await discord_channel.fetch_message(message.discord_message_id)
 
             await discord_message.delete()
+            logging.info(f'Discord message deleted following deletion from server: {message.id}')
 
         # Remove from server
         message.hidden = True
@@ -201,8 +202,6 @@ class Server:
 
         await self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': message_id},
                                  self.namespace)
-
-        logging.info(f'Discord message deleted following deletion from server: {message.id}')
 
     async def start(self):
         """
