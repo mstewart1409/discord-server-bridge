@@ -27,3 +27,4 @@ env/
 # Logs and databases
 *.log
 *.sqlite3
+dsbridge_banned_words.txt
