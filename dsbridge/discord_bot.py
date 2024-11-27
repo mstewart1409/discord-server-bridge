@@ -11,6 +11,7 @@ class DiscordBot:
     def __init__(self, config):
         intents = discord.Intents.default()
         intents.messages = True
+        intents.message_content = True
         intents.guilds = True
         self.bot = commands.Bot(command_prefix='!', intents=intents)
         self.server_bot = None
