@@ -106,14 +106,14 @@ class Server:
                 except (SQLAlchemyError, psycopg2.OperationalError) as e:
                     error = e
                     await self.session.rollback()
-                    await self.session.close()
+                    await self.session.reset()
                     self.session = session
                     retries += 1
                     logging.info('Retrying connection to database')
                 except Exception as e:
                     error = e
                     await self.session.rollback()
-                    await self.session.close()
+                    await self.session.reset()
                     self.session = session
                     retries += 1
                     logging.info('Retrying connection to database')
