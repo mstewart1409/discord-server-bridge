@@ -6,8 +6,17 @@ from decouple import config
 class Config(object):
     @staticmethod
     def import_txt_as_list(filename):
-        with open(filename, 'r') as file:
-            return [line.strip() for line in file.read().splitlines()]
+        # Get the directory where this config.py file is located
+        config_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(config_dir, filename)
+
+        output = []
+        try:
+            with open(file_path, 'r') as f:
+                output = f.read().split('\n')
+        except FileNotFoundError:
+            print(f"Warning: File {file_path} not found")
+        return output
 
     basedir = os.path.abspath(os.path.dirname(__file__))
 
