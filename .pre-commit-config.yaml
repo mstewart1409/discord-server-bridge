@@ -1,39 +1,58 @@
 repos:
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.4.0
-  hooks:
-  #- id: no-commit-to-branch
-  - id: trailing-whitespace
-  - id: check-merge-conflict
-  - id: end-of-file-fixer
-  - id: check-yaml
-  - id: fix-byte-order-marker
-  - id: check-added-large-files
-  - id: check-json
-  - id: detect-private-key
-  - id: double-quote-string-fixer
-- repo: https://github.com/asottile/reorder_python_imports
-  rev: v3.9.0
-  hooks:
-  - id: reorder-python-imports
-- repo: https://github.com/kynan/nbstripout
-  rev: 0.6.1
-  hooks:
-    - id: nbstripout
-- repo: https://github.com/pycqa/flake8
-  rev: 5.0.4
-  hooks:
-  - id: flake8
-- repo: https://github.com/pryorda/dockerfilelint-precommit-hooks
-  rev: v0.1.0
-  hooks:
-  - id: dockerfilelint
-    stages: [commit]
-- repo: https://github.com/python-poetry/poetry
-  rev: '1.7.0'
-  hooks:
-  - id: poetry-check
-  - id: poetry-lock
-  - id: poetry-export
-    args: ["--without-hashes", "--without-urls", "-f", "requirements.txt", "-o", "requirements.txt"]
-  - id: poetry-install
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.9.21  # uv version
+    hooks:
+      - id: uv-lock  # Ensures lockfile is current
+
+  - repo: "https://github.com/pre-commit/pre-commit-hooks"
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args:
+          - "--maxkb=2000"
+      - id: trailing-whitespace
+      - id: check-docstring-first
+      - id: check-toml
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: fix-byte-order-marker
+      - id: end-of-file-fixer
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        exclude: package.lock.json
+
+  - repo: https://gitlab.com/bmares/check-json5
+    rev: v1.0.0
+    hooks:
+      - id: check-json5
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.14.10
+    hooks:
+      # Run the linter.
+      - id: ruff
+        args: [ --fix ]
+      # Run the formatter.
+      - id: ruff-format
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.28.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  - repo: local
+    hooks:
+
+      - id: pytest
+        name: pytest
+        entry: uv run pytest tests/
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit]

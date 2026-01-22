@@ -1,34 +1,83 @@
-[tool.poetry]
+[project]
 name = "discord-server-bridge"
-packages = [
-    {include = "dsbridge"}
-]
-version = "0.1.1"
+version = "0.2.0"
 description = ""
-authors = ["Michael <m.n.stewart@live.co.uk>"]
+authors = [{ name = "Michael", email = "m.n.stewart@live.co.uk" }]
+requires-python = ">=3.13.11,<4"
 readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "discord.py>=2.4.0,<3",
+    "python-decouple>=3.8,<4",
+    "sqlalchemy>=2.0.32,<3",
+    "requests>=2.26.0,<3",
+    "psycopg2>=2.9.3,<3",
+    "pytz>=2025,<2026",
+    "python-socketio>=5.11.4,<6",
+    "werkzeug>=3.0.1,<4",
+    "bleach>=6.1.0,<7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.0,<10",
+    "pytest-mock==3.15.1",
+    "coverage>=7.2.2,<8",
+    "pre-commit>=4.0.0,<5",
+    "commitizen>=3.6.0,<4",
+]
+
+[tool.uv]
+
+[tool.uv.build-backend]
+module-name = ["dsbridge"]
+module-root = ""
 
 
-[tool.poetry.dependencies]
-python = "^3.10"
-"discord.py" = "^2.4.0"
-python-decouple = "^3.8"
-sqlalchemy = "^2.0.32"
-requests = "^2.26.0"
-psycopg2 = "^2.9.3"
-pytz = "^2024.2"
-python-socketio = "^5.11.4"
-werkzeug = "^3.0.1"
-bleach = "^6.1.0"
+[tool.hatch.build.targets.sdist]
+include = ["dsbridge"]
 
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.2.0"
-pytest-mock = "*"
-coverage = "^7.2.2"
-pre-commit = "2.20.0"
-
+[tool.hatch.build.targets.wheel]
+include = ["dsbridge"]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "tests"
+]
+
+[tool.ruff.lint]
+ignore = [
+    "E731"
+]
+
+[tool.ruff.format]
+docstring-code-format = true
+quote-style = "single"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.2.0"
+version_files = [
+    "pyproject.toml:version",
+    "dsbridge/__init__.py:__version__"
+]
+tag_format = "$version"
+update_changelog_on_bump = true
+pre_bump_hooks = []
+
+
+[tool.coverage.run]
+omit = ["tests/*"]

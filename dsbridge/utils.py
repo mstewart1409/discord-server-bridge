@@ -18,7 +18,7 @@ def remove_personal_info(message, allowed_domain=None):
         'credit_card': r'\b(?:\d[ -]*?){13,16}\b',
         'ssn': r'\b\d{3}-\d{2}-\d{4}\b',
         'url': r'https?://[^\s<>"]+|www\.[^\s<>"]+',
-        'html_tags': r'<[^>]+>'
+        'html_tags': r'<[^>]+>',
     }
 
     for key, pattern in patterns.items():
@@ -39,10 +39,15 @@ def remove_personal_info(message, allowed_domain=None):
 
 
 def remove_words(input_string, banned_words):
-    # Create a pattern that matches any word in the list
-    pattern = r'\b(' + '|'.join(banned_words) + r')\b'
+    # Filter out empty or whitespace-only words and escape regex metacharacters
+    filtered_words = [re.escape(w.strip()) for w in banned_words if w.strip()]
+    if not filtered_words:
+        return input_string
 
-    # Use re.sub to replace the words with an empty string
+    # Create a pattern that matches any word in the list
+    pattern = r'\b(' + '|'.join(filtered_words) + r')\b'
+
+    # Use re.sub to replace the words with [REMOVED]
     output_string = re.sub(pattern, '[REMOVED]', input_string, flags=re.IGNORECASE)
 
     return output_string
@@ -59,7 +64,7 @@ def sanitize_input(user_input, banned_words, allowed_domain=None):
         tags=set(allowed_tags),
         attributes=allowed_attributes,
         protocols=protocols,
-        strip=True
+        strip=True,
     )
 
     # Include custom sanitization
