@@ -5,7 +5,6 @@ from inspect import isawaitable
 from discord.message import Message as DiscordMessage
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import selectinload
 
 import dsbridge.utils as utils
 from dsbridge.discord_bot import DiscordBot
@@ -21,7 +20,14 @@ async def _noop(payload):
 
 
 class Server:
-    def __init__(self, session, on_change=None, display_name=None):
+    def __init__(
+        self,
+        session,
+        on_change=None,
+        display_name=None,
+        message_model=Message,
+        channel_model=ChatChannels,
+    ):
         """
         The server side half of the bridge, driven by the host application.
 
@@ -32,10 +38,16 @@ class Server:
             display_name: Optional callable taking a host user id and returning the
                 name to show on Discord. May be a coroutine function. Users belong
                 to the host application, so the bridge stores only their ids.
+            message_model: The mapped class holding the messages, built from
+                ``MessageMixin``. Defaults to the bridge's own model.
+            channel_model: The mapped class holding the channels, built from
+                ``ChatChannelsMixin``. Defaults to the bridge's own model.
         """
         self.session = session
         self.on_change = on_change or _noop
         self.resolve_display_name = display_name
+        self.message_model = message_model
+        self.channel_model = channel_model
         self.discord_bot = None
 
     def init_bot(self, discord_bot: DiscordBot):
@@ -68,9 +80,9 @@ class Server:
 
         return wrap
 
-    async def get_message(self, message_id: int) -> Message | None:
+    async def get_message(self, message_id: int):
         """
-        Load a message with the relationships the handlers need.
+        Load a message by its primary key.
 
         Args:
             message_id: Message ID from server.
@@ -78,12 +90,9 @@ class Server:
         Returns:
             The message, or None when no such message exists.
         """
-        result = await self.session.execute(
-            select(Message).options(selectinload(Message.channel)).filter_by(id=message_id)
-        )
-        return result.scalar_one_or_none()
+        return await self.session.get(self.message_model, message_id)
 
-    async def display_name(self, message: Message) -> str:
+    async def display_name(self, message) -> str:
         """The author's display name, or a placeholder when the host cannot name them."""
         if message.user_id is None or self.resolve_display_name is None:
             return UNKNOWN_DISPLAY_NAME
@@ -93,8 +102,13 @@ class Server:
             name = await name
         return name or UNKNOWN_DISPLAY_NAME
 
-    def get_discord_channel(self, message: Message):
+    async def get_discord_channel(self, message):
         """
+        Resolve the Discord channel a message should be mirrored into.
+
+        The channel is loaded by an explicit query rather than through a relationship,
+        because the host owns the mapping and need not relate the two models at all.
+
         Args:
             message: Message whose channel should be resolved.
 
@@ -102,13 +116,14 @@ class Server:
             The Discord channel to mirror into, or None when the message is not
             mirrored or the bot cannot see the channel.
         """
-        if message.channel is None or message.channel.discord_channel_id is None:
+        channel = await self.session.get(self.channel_model, message.channel_id)
+        if channel is None or channel.discord_channel_id is None:
             return None
 
-        channel = self.discord_bot.bot.get_channel(message.channel.discord_channel_id)
-        if channel is None:
-            logging.error(f'Discord channel not found: {message.channel.discord_channel_id}')
-        return channel
+        discord_channel = self.discord_bot.bot.get_channel(channel.discord_channel_id)
+        if discord_channel is None:
+            logging.error(f'Discord channel not found: {channel.discord_channel_id}')
+        return discord_channel
 
     @session_scope
     async def handle_server_message(self, message_id: int):
@@ -122,7 +137,7 @@ class Server:
             logging.error(f'Server message not found: {message_id}')
             return
 
-        discord_channel = self.get_discord_channel(message)
+        discord_channel = await self.get_discord_channel(message)
         if discord_channel is None:
             return
 
@@ -153,7 +168,7 @@ class Server:
             )
             return
 
-        discord_channel = self.get_discord_channel(before_message)
+        discord_channel = await self.get_discord_channel(before_message)
         if discord_channel is None:
             return
 
@@ -191,7 +206,7 @@ class Server:
             logging.error(f'Server message not found: {message_id}')
             return
 
-        discord_channel = self.get_discord_channel(message)
+        discord_channel = await self.get_discord_channel(message)
         if discord_channel is not None and message.discord_message_id is not None:
             discord_message = await discord_channel.fetch_message(message.discord_message_id)
 
@@ -212,15 +227,15 @@ class Server:
         """
         # Send the message to the server
         result = await self.session.execute(
-            select(ChatChannels).filter_by(discord_channel_id=data.channel.id)
+            select(self.channel_model).filter_by(discord_channel_id=data.channel.id)
         )
         channel = result.scalar_one_or_none()
         if channel is None:
-            channel = ChatChannels(discord_channel_id=data.channel.id)
+            channel = self.channel_model(discord_channel_id=data.channel.id)
             self.session.add(channel)
             await self.session.commit()
 
-        message = Message(data, channel)
+        message = self.message_model.from_discord(data, channel)
         self.session.add(message)
         await self.session.commit()
 
@@ -236,12 +251,12 @@ class Server:
         """
         # Edit the message on the server
         result = await self.session.execute(
-            select(ChatChannels).filter_by(discord_channel_id=before_msg.channel.id)
+            select(self.channel_model).filter_by(discord_channel_id=before_msg.channel.id)
         )
         channel = result.scalar_one_or_none()
 
         result = await self.session.execute(
-            select(Message).filter_by(discord_message_id=before_msg.id, hidden=False)
+            select(self.message_model).filter_by(discord_message_id=before_msg.id, hidden=False)
         )
         before_server_message = result.scalars().first()
 
@@ -252,7 +267,7 @@ class Server:
         before_server_message.hidden = True
         before_server_message.last_updated = utcnow()
 
-        after_server_message = Message(after_msg, channel)
+        after_server_message = self.message_model.from_discord(after_msg, channel)
         after_server_message.user_id = before_server_message.user_id
         after_server_message.created_at = before_server_message.created_at
         self.session.add(after_server_message)
@@ -275,7 +290,7 @@ class Server:
         """
         # Delete the message on the server
         result = await self.session.execute(
-            select(Message).filter_by(discord_message_id=message.id, hidden=False)
+            select(self.message_model).filter_by(discord_message_id=message.id, hidden=False)
         )
         server_msg = result.scalars().first()
         if server_msg is None:

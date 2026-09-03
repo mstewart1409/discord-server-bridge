@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from dsbridge.database import Database
 from dsbridge.discord_bot import DiscordBot
+from dsbridge.models import ChatChannels
+from dsbridge.models import Message
 from dsbridge.server import Server
 
 
@@ -15,6 +17,9 @@ class DSBridge:
         on_change=None,
         banned_words: list[str] | None = None,
         display_name=None,
+        message_model=Message,
+        channel_model=ChatChannels,
+        create_tables: bool = True,
     ):
         """
         Build the bridge and its dependencies.
@@ -29,10 +34,25 @@ class DSBridge:
             display_name: Optional callable taking a host user id and returning the
                 name to show on Discord. May be a coroutine function. Users belong
                 to the host application, so the bridge stores only their ids.
+            message_model: The mapped class holding the messages, built from
+                ``MessageMixin``. Pass your own to keep the mapping in your
+                application's registry; defaults to the bridge's own model.
+            channel_model: The mapped class holding the channels, built from
+                ``ChatChannelsMixin``. Defaults to the bridge's own model.
+            create_tables: Whether ``start`` should create the two tables when they do
+                not exist. Turn it off when your own migrations own the schema.
         """
+        self.message_model = message_model
+        self.channel_model = channel_model
+        self.create_tables = create_tables
+
         self.database = Database(database_engine)
         self.server_bot = Server(
-            session=self.database.session, on_change=on_change, display_name=display_name
+            session=self.database.session,
+            on_change=on_change,
+            display_name=display_name,
+            message_model=message_model,
+            channel_model=channel_model,
         )
         self.discord_bot = DiscordBot(
             discord_token=discord_token,
@@ -44,13 +64,16 @@ class DSBridge:
 
     async def start(self):
         """
-        Create any missing tables and run the Discord bot until it stops.
+        Create the bridge's own tables if asked to, then run the Discord bot until it stops.
 
         The caller's engine is left open; only the bridge's own sessions are released.
         """
         logging.info('Starting DSBridge')
 
-        await self.database.create_all()
+        if self.create_tables:
+            await self.database.create_all(
+                [self.channel_model.__table__, self.message_model.__table__]
+            )
 
         try:
             await self.discord_bot.start()

@@ -36,7 +36,7 @@ def discord_channel(sent_id=999, fetched_id=888):
 async def database(tmp_path):
     engine = create_async_engine(f'sqlite+aiosqlite:///{tmp_path.as_posix()}/test.db')
     db = Database(engine)
-    await db.create_all()
+    await db.create_all([ChatChannels.__table__, Message.__table__])
     yield db
     await db.close()
     await engine.dispose()
@@ -89,7 +89,7 @@ async def seeded(database):
     session.add(channel)
     await session.commit()
 
-    message = Message(discord_message(), channel)
+    message = Message.from_discord(discord_message(), channel)
     message.user_id = 7
     session.add(message)
     await session.commit()
@@ -114,7 +114,7 @@ async def edited_message(database, seeded):
     """A second message holding the edited text of the seeded one."""
     async with database.session_factory() as session:
         channel = await session.get(ChatChannels, seeded['channel_id'])
-        message = Message(discord_message(message_id=112, content='edited'), channel)
+        message = Message.from_discord(discord_message(message_id=112, content='edited'), channel)
         session.add(message)
         await session.commit()
         return message.id

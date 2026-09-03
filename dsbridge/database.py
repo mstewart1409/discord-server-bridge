@@ -26,12 +26,22 @@ class Database:
         self.session_factory = async_sessionmaker(bind=self.engine, expire_on_commit=False)
         self.session = async_scoped_session(self.session_factory, scopefunc=current_task)
 
-    async def create_all(self):
+    async def create_all(self, tables):
         """
-        Create any tables that do not yet exist.
+        Create the given tables if they do not exist, leaving the rest of the schema alone.
+
+        The bridge may share a registry, and therefore a ``MetaData``, with the host
+        application, so only the tables it was handed are ever created.
+
+        Args:
+            tables: The ``Table`` objects to create.
         """
+        tables = list(tables)
+        if not tables:
+            return
+
         async with self.engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
+            await connection.run_sync(tables[0].metadata.create_all, tables=tables)
 
     async def close(self):
         """

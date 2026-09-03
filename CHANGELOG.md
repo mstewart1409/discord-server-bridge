@@ -1,3 +1,23 @@
+## 0.3.0 (2026-09-03)
+
+### Feat
+
+- Accept the host application's own message and channel models via `message_model` and `channel_model`
+- Export `ChatChannelsMixin` and `MessageMixin` so the mapping can live in the host's registry
+- Build rows with `Message.from_discord()` instead of a custom `__init__`
+- Make table creation opt-out with `create_tables`
+
+### Fix
+
+- Create only the bridge's own tables, never the whole metadata
+- Resolve a message's channel by query instead of a relationship, so hosts need not relate the two models
+
+### BREAKING CHANGE
+
+- `Message(data, channel)` is now `Message.from_discord(data, channel)`
+- `Database.create_all()` now requires the tables to create
+- `to_dict()` was removed from both models; serialisation belongs to the host
+
 ## 0.2.0 (2026-01-22)
 
 ### Fix
