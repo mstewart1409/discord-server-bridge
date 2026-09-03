@@ -1,70 +1,37 @@
-import asyncio
-import json
 import logging
-import re
-from datetime import date
-from datetime import datetime
-from datetime import timedelta
 from functools import wraps
 
-import psycopg2
-import pytz
-import socketio
 from discord.message import Message as DiscordMessage
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from werkzeug.security import generate_password_hash
+from sqlalchemy.orm import selectinload
 
 import dsbridge.utils as utils
 from dsbridge.discord_bot import DiscordBot
 from dsbridge.models import ChatChannels
 from dsbridge.models import Message
+from dsbridge.models import utcnow
+
+UNKNOWN_DISPLAY_NAME = 'Unknown user'
 
 
-class CustomJSONEncodeDecode:
-    @staticmethod
-    def dumps(obj, **kwargs):
-        return json.dumps(obj, **kwargs, default=CustomJSONEncodeDecode.object_jsonify)
-
-    @staticmethod
-    def loads(s, **kwargs):
-        return json.loads(s, **kwargs, object_hook=CustomJSONEncodeDecode.datetime_parser)
-
-    @staticmethod
-    def object_jsonify(o):
-        if callable(getattr(o, 'to_dict', None)):
-            return o.to_dict()
-        elif isinstance(o, (datetime, date, timedelta)):
-            return o.isoformat()
-
-    @staticmethod
-    def datetime_parser(obj):
-        iso_datetime_pattern = re.compile(
-            r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:\d{2})?$'
-        )
-        for k, v in obj.items():
-            if isinstance(v, str) and iso_datetime_pattern.match(v):
-                obj[k] = datetime.fromisoformat(v)
-        return obj
+async def _noop(payload):
+    pass
 
 
 class Server:
-    def __init__(self, namespace: str, host_url: str, app_secret_key: str, session):
+    def __init__(self, session, on_change=None):
         """
-        Args:
-            namespace: Socket.IO namespace to join on the server.
-            host_url: Host of the server, without the scheme.
-            app_secret_key: Shared secret used to sign requests to the server.
-            session: SQLAlchemy session registry to query the database with.
-        """
-        self.socketio = socketio.AsyncClient(reconnection=False, logger=False, engineio_logger=False,
-                                             json=CustomJSONEncodeDecode)
-        self.session = session
-        self.namespace = namespace
-        self.endpoint = host_url
-        self.key = app_secret_key
-        self.discord_bot = None
+        The server side half of the bridge, driven by the host application.
 
-        self.add_routes()
+        Args:
+            session: SQLAlchemy session registry to query the database with.
+            on_change: Optional awaitable called with a payload describing every
+                change that originated on Discord, so the host can broadcast it.
+        """
+        self.session = session
+        self.on_change = on_change or _noop
+        self.discord_bot = None
 
     def init_bot(self, discord_bot: DiscordBot):
         """
@@ -74,80 +41,95 @@ class Server:
         """
         self.discord_bot = discord_bot
 
-    def add_routes(self):
-        """
-        Add routes to the socket
-        """
-        @self.socketio.on('chat-message', namespace=self.namespace)
-        async def on_message(data):
-            if data['type'] == 'new-message':
-                await self.handle_server_message(data['message_id'])
-            elif data['type'] == 'edit-message':
-                await self.handle_server_message_edited(data['message_id'])
-            elif data['type'] == 'delete-message':
-                await self.handle_server_message_deletion(data['message_id'])
-            else:
-                logging.error(f'Unknown message type: {data["type"]}')
-
-        @self.socketio.on('connect', namespace=self.namespace)
-        async def on_connect():
-            logging.info('Connected to server')
-
-        @self.socketio.on('disconnect', namespace=self.namespace)
-        async def on_disconnect():
-            logging.info('Disconnected from server')
-
     @staticmethod
-    def handle_connection_error(f):
+    def session_scope(f):
+        """
+        Roll back and release the task's session once the handler is done.
+
+        Stale connections are already handled by the engine's ``pool_pre_ping``.
+        """
+
         @wraps(f)
         async def wrap(self, *args, **kwargs):
-            retries = 0
-            error = None
-            while retries < 3:
-                try:
-                    await self.socketio.sleep(0)
-                    return await f(self, *args, **kwargs)
-                except (SQLAlchemyError, psycopg2.OperationalError) as e:
-                    error = e
-                    await self.session.rollback()
-                    await self.session.reset()
-                    retries += 1
-                    logging.info('Retrying connection to database')
-                except Exception as e:
-                    error = e
-                    await self.session.rollback()
-                    await self.session.reset()
-                    retries += 1
-                    logging.info('Retrying connection to database')
+            try:
+                return await f(self, *args, **kwargs)
+            except SQLAlchemyError:
+                await self.session.rollback()
+                raise
+            finally:
+                # Sessions are scoped to the current task, so release this one
+                # instead of leaking a connection per handled event.
+                await self.session.remove()
 
-            raise error
         return wrap
 
-    @handle_connection_error
+    async def get_message(self, message_id: int) -> Message | None:
+        """
+        Load a message with the relationships the handlers need.
+
+        Args:
+            message_id: Message ID from server.
+
+        Returns:
+            The message, or None when no such message exists.
+        """
+        result = await self.session.execute(
+            select(Message)
+            .options(selectinload(Message.channel), selectinload(Message.user))
+            .filter_by(id=message_id)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    def display_name(message: Message) -> str:
+        """The author's display name, or a placeholder for Discord-origin messages."""
+        return message.user.display_name if message.user else UNKNOWN_DISPLAY_NAME
+
+    def get_discord_channel(self, message: Message):
+        """
+        Args:
+            message: Message whose channel should be resolved.
+
+        Returns:
+            The Discord channel to mirror into, or None when the message is not
+            mirrored or the bot cannot see the channel.
+        """
+        if message.channel is None or message.channel.discord_channel_id is None:
+            return None
+
+        channel = self.discord_bot.bot.get_channel(message.channel.discord_channel_id)
+        if channel is None:
+            logging.error(f'Discord channel not found: {message.channel.discord_channel_id}')
+        return channel
+
+    @session_scope
     async def handle_server_message(self, message_id: int):
         """
         Forward the message to discord
         Args:
             message_id: Message ID from server
         """
-        message = self.session.query(Message).filter_by(id=message_id).first()
+        message = await self.get_message(message_id)
+        if message is None:
+            logging.error(f'Server message not found: {message_id}')
+            return
 
-        if message.channel.discord_channel_id is not None:
-            discord_channel = self.discord_bot.bot.get_channel(message.channel.discord_channel_id)
-            discord_message = await discord_channel.send(
-                embed=utils.create_embed(message.user.display_name, message.text))
+        discord_channel = self.get_discord_channel(message)
+        if discord_channel is None:
+            return
 
-            # Update discord response on server
-            message.discord_message_id = discord_message.id
-            message.last_updated = datetime.now(pytz.UTC)
-            self.session.commit()
+        discord_message = await discord_channel.send(
+            embed=utils.create_embed(self.display_name(message), message.text)
+        )
 
-            logging.info(f'Server message forwarded to Discord: {message.id}')
+        # Update discord response on server
+        message.discord_message_id = discord_message.id
+        message.last_updated = utcnow()
+        await self.session.commit()
 
-        await self.socketio.emit('chat-message', {'type': 'new-message', 'message_id': message_id},
-                                 self.namespace)
+        logging.info(f'Server message forwarded to Discord: {message.id}')
 
-    @handle_connection_error
+    @session_scope
     async def handle_server_message_edited(self, before_message_id: int, after_message_id: int):
         """
         Edit the message on discord
@@ -155,43 +137,54 @@ class Server:
             before_message_id: Before message ID from server
             after_message_id: After message ID from server
         """
-        before_message = self.session.query(Message).filter_by(id=before_message_id).first()
-        after_message = self.session.query(Message).filter_by(id=after_message_id).first()
+        before_message = await self.get_message(before_message_id)
+        after_message = await self.get_message(after_message_id)
+        if before_message is None or after_message is None:
+            logging.error(
+                f'Server messages not found for edit: {before_message_id} -> {after_message_id}'
+            )
+            return
 
-        if before_message.channel.discord_channel_id is not None:
-            discord_channel = self.discord_bot.bot.get_channel(before_message.channel.discord_channel_id)
-            discord_message = await discord_channel.fetch_message(before_message.discord_message_id)
+        discord_channel = self.get_discord_channel(before_message)
+        if discord_channel is None:
+            return
 
-            edited_message = await discord_message.edit(
-                embed=utils.create_embed(before_message.user.display_name, after_message.text))
+        if before_message.discord_message_id is None:
+            logging.error(f'Server message was never mirrored to Discord: {before_message_id}')
+            return
 
-            # Update discord response on server
-            before_message.hidden = True
-            before_message.last_updated = datetime.now(pytz.UTC)
+        discord_message = await discord_channel.fetch_message(before_message.discord_message_id)
 
-            after_message.discord_message_id = edited_message.id
-            after_message.last_updated = datetime.now(pytz.UTC)
-            self.session.commit()
+        edited_message = await discord_message.edit(
+            embed=utils.create_embed(self.display_name(before_message), after_message.text)
+        )
 
-            logging.info(
-                f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.id}')
+        # Update discord response on server
+        before_message.hidden = True
+        before_message.last_updated = utcnow()
 
-        await self.socketio.emit('chat-message', {'type': 'edit-message',
-                                                  'before_message_id': before_message_id,
-                                                  'after_message_id': after_message_id},
-                                 self.namespace)
+        after_message.discord_message_id = edited_message.id
+        after_message.last_updated = utcnow()
+        await self.session.commit()
 
-    @handle_connection_error
+        logging.info(
+            f'Discord message ID: {discord_message.id} edited following edit in server: {edited_message.id}'
+        )
+
+    @session_scope
     async def handle_server_message_deletion(self, message_id: int):
         """
         Delete the message from discord
         Args:
             message_id: Message ID from server
         """
-        message = self.session.query(Message).filter_by(id=message_id).first()
+        message = await self.get_message(message_id)
+        if message is None:
+            logging.error(f'Server message not found: {message_id}')
+            return
 
-        if message.channel.discord_channel_id is not None:
-            discord_channel = self.discord_bot.bot.get_channel(message.channel.discord_channel_id)
+        discord_channel = self.get_discord_channel(message)
+        if discord_channel is not None and message.discord_message_id is not None:
             discord_message = await discord_channel.fetch_message(message.discord_message_id)
 
             await discord_message.delete()
@@ -199,32 +192,10 @@ class Server:
 
         # Remove from server
         message.hidden = True
-        message.last_updated = datetime.now(pytz.UTC)
-        self.session.commit()
+        message.last_updated = utcnow()
+        await self.session.commit()
 
-        await self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': message_id},
-                                 self.namespace)
-
-    async def start(self):
-        """
-        Start the connection to the server
-        """
-        logging.info('Starting Server Bot')
-        while True:
-            timestamp = str(datetime.now(pytz.UTC).timestamp())
-            hash_k = generate_password_hash(self.key + timestamp, method='pbkdf2')
-            headers = {'Authorization': hash_k, 'Timestamp': timestamp}
-
-            try:
-                await self.socketio.connect('https://' + self.endpoint, headers=headers, namespaces=[self.namespace])
-                await self.socketio.wait()
-                logging.info('Connection to server closed..')
-            except Exception as e:
-                logging.error('Error in connection to Server..')
-                logging.error(repr(e))
-                await asyncio.sleep(5)
-
-    @handle_connection_error
+    @session_scope
     async def send_to_server(self, data: DiscordMessage):
         """
         Send the message to the server
@@ -232,20 +203,22 @@ class Server:
             data: DiscordMessage
         """
         # Send the message to the server
-        channel = self.session.query(ChatChannels).filter_by(discord_channel_id=data.channel.id).first()
+        result = await self.session.execute(
+            select(ChatChannels).filter_by(discord_channel_id=data.channel.id)
+        )
+        channel = result.scalar_one_or_none()
         if channel is None:
             channel = ChatChannels(discord_channel_id=data.channel.id)
             self.session.add(channel)
-            self.session.commit()
+            await self.session.commit()
 
         message = Message(data, channel)
         self.session.add(message)
-        self.session.commit()
+        await self.session.commit()
 
-        await self.socketio.emit('chat-message', {'type': 'new-message', 'message_id': message.id},
-                                 self.namespace)
+        await self.on_change({'type': 'new-message', 'message_id': message.id})
 
-    @handle_connection_error
+    @session_scope
     async def edit_message_text(self, before_msg: DiscordMessage, after_msg: DiscordMessage):
         """
         Edit the message on the server
@@ -254,24 +227,38 @@ class Server:
             after_msg: DiscordMessage
         """
         # Edit the message on the server
-        channel = self.session.query(ChatChannels).filter_by(discord_channel_id=before_msg.channel.id).first()
-        before_server_message = self.session.query(Message).filter_by(
-            discord_message_id=before_msg.id, hidden=False).first()
+        result = await self.session.execute(
+            select(ChatChannels).filter_by(discord_channel_id=before_msg.channel.id)
+        )
+        channel = result.scalar_one_or_none()
+
+        result = await self.session.execute(
+            select(Message).filter_by(discord_message_id=before_msg.id, hidden=False)
+        )
+        before_server_message = result.scalars().first()
+
+        if channel is None or before_server_message is None:
+            logging.error(f'Discord message is not mirrored on the server: {before_msg.id}')
+            return
+
         before_server_message.hidden = True
-        before_server_message.last_updated = datetime.now(pytz.UTC)
+        before_server_message.last_updated = utcnow()
 
         after_server_message = Message(after_msg, channel)
         after_server_message.user_id = before_server_message.user_id
         after_server_message.created_at = before_server_message.created_at
         self.session.add(after_server_message)
-        self.session.commit()
+        await self.session.commit()
 
-        await self.socketio.emit('chat-message', {'type': 'edit-message',
-                                                  'before_message_id': before_server_message.id,
-                                                  'after_message_id': after_server_message.id},
-                                 self.namespace)
+        await self.on_change(
+            {
+                'type': 'edit-message',
+                'before_message_id': before_server_message.id,
+                'after_message_id': after_server_message.id,
+            }
+        )
 
-    @handle_connection_error
+    @session_scope
     async def delete_message(self, message: DiscordMessage):
         """
         Delete the message on the server
@@ -279,10 +266,16 @@ class Server:
             message: DiscordMessage
         """
         # Delete the message on the server
-        server_msg = self.session.query(Message).filter_by(discord_message_id=message.id, hidden=False).first()
-        server_msg.hidden = True
-        server_msg.last_updated = datetime.now(pytz.UTC)
-        self.session.commit()
+        result = await self.session.execute(
+            select(Message).filter_by(discord_message_id=message.id, hidden=False)
+        )
+        server_msg = result.scalars().first()
+        if server_msg is None:
+            logging.error(f'Discord message is not mirrored on the server: {message.id}')
+            return
 
-        await self.socketio.emit('chat-message', {'type': 'delete-message', 'message_id': server_msg.id},
-                                 self.namespace)
+        server_msg.hidden = True
+        server_msg.last_updated = utcnow()
+        await self.session.commit()
+
+        await self.on_change({'type': 'delete-message', 'message_id': server_msg.id})

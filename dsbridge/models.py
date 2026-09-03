@@ -1,4 +1,5 @@
 from datetime import datetime
+from datetime import timezone
 
 from discord.message import Message as DiscordMessage
 from sqlalchemy import BigInteger
@@ -14,6 +15,11 @@ from sqlalchemy.orm import relationship
 from dsbridge.database import Base
 
 
+def utcnow():
+    """The current time as a timezone aware UTC datetime."""
+    return datetime.now(timezone.utc)
+
+
 class ChatChannels(Base):
     __tablename__ = 'chat_channels'
 
@@ -21,10 +27,15 @@ class ChatChannels(Base):
     discord_channel_id = Column(BigInteger, index=True)
     public = Column(Boolean, nullable=False, default=False)
     closed = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    last_updated = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    last_updated = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 
-    messages = relationship('Message', uselist=True, back_populates='channel', primaryjoin='ChatChannels.id==Message.channel_id')
+    messages = relationship(
+        'Message',
+        uselist=True,
+        back_populates='channel',
+        primaryjoin='ChatChannels.id==Message.channel_id',
+    )
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -40,17 +51,19 @@ class Message(Base):
     discord_user_id = Column(BigInteger)
     text = Column(String, nullable=False)
     hidden = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    last_updated = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    last_updated = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 
     user = relationship('User', uselist=False, primaryjoin='Message.user_id==User.id')
 
-    channel = relationship('ChatChannels', uselist=False, back_populates='messages',
-                           primaryjoin='Message.channel_id==ChatChannels.id')
-
-    __table_args__ = (
-        Index('ix_channel_id_hidden', 'channel_id', 'hidden'),
+    channel = relationship(
+        'ChatChannels',
+        uselist=False,
+        back_populates='messages',
+        primaryjoin='Message.channel_id==ChatChannels.id',
     )
+
+    __table_args__ = (Index('ix_channel_id_hidden', 'channel_id', 'hidden'),)
 
     def __init__(self, data, channel):
         super().__init__()
