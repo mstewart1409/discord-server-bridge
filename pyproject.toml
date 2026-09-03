@@ -2,7 +2,7 @@
 name = "discord-server-bridge"
 version = "0.2.0"
 description = ""
-authors = [{ name = "Michael", email = "m.n.stewart@live.co.uk" }]
+authors = [{ name = "Michael Stewart", email = "14077535+mstewart1409@users.noreply.github.com" }]
 requires-python = ">=3.13.11,<4"
 readme = "README.md"
 classifiers = [
@@ -11,7 +11,6 @@ classifiers = [
 ]
 dependencies = [
     "discord.py>=2.4.0,<3",
-    "python-decouple>=3.8,<4",
     "sqlalchemy>=2.0.32,<3",
     "requests>=2.26.0,<3",
     "psycopg2>=2.9.3,<3",

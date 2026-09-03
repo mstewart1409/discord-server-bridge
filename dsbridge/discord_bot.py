@@ -8,14 +8,20 @@ import dsbridge.utils as utils
 
 
 class DiscordBot:
-    def __init__(self, config):
+    def __init__(self, discord_token: str, banned_words: list[str] | None = None):
+        """
+        Args:
+            discord_token: Token used to authenticate the Discord bot.
+            banned_words: Words to strip from messages.
+        """
         intents = discord.Intents.default()
         intents.messages = True
         intents.message_content = True
         intents.guilds = True
         self.bot = commands.Bot(command_prefix='!', intents=intents)
         self.server_bot = None
-        self.config = config
+        self.token = discord_token
+        self.banned_words = banned_words or []
 
         self.add_routes()
 
@@ -38,7 +44,7 @@ class DiscordBot:
         @self.bot.event
         @self.discord_bot_handler
         async def on_message(message: DiscordMessage):
-            sanitized_message = utils.sanitize_input(message.content, self.config.BANNED_WORDS)
+            sanitized_message = utils.sanitize_input(message.content, self.banned_words)
             if sanitized_message != message.content:
                 await message.delete()
                 logging.info(f'Discord message deleted due to sanitization: {message.id}')
@@ -64,7 +70,7 @@ class DiscordBot:
         Start the discord bot
         """
         logging.info('Starting Discord Bot')
-        await self.bot.start(self.config.DISCORD_TOKEN, reconnect=True)
+        await self.bot.start(self.token, reconnect=True)
 
     # decorator for discord bot event handlers
     def discord_bot_handler(self, func):

@@ -1,17 +1,16 @@
 import pytest
 import dsbridge.utils as utils
-from dsbridge.config import app_config
 
 @pytest.fixture(scope="module")
-def config():
-    return app_config
+def banned_words():
+    return ['fuck', 'shit']
 
-def test_message_sanitization_safe(config):
+def test_message_sanitization_safe(banned_words):
     message = 'Greetings everyone!'
-    sanitized_msg = utils.sanitize_input(message, config.BANNED_WORDS)
+    sanitized_msg = utils.sanitize_input(message, banned_words)
     assert message == sanitized_msg
 
-def test_message_sanitization_unsafe(config):
+def test_message_sanitization_unsafe(banned_words):
     message = 'Go fuck yourself'
-    sanitized_msg = utils.sanitize_input(message, config.BANNED_WORDS)
+    sanitized_msg = utils.sanitize_input(message, banned_words)
     assert message != sanitized_msg

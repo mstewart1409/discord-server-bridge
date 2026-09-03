@@ -4,6 +4,20 @@ import bleach
 from discord import Embed
 
 
+def load_banned_words(file_path):
+    """
+    Read a newline separated list of banned words from disk.
+
+    Args:
+        file_path: Path to the banned words file.
+
+    Returns:
+        The banned words, with blank lines removed.
+    """
+    with open(file_path, 'r') as f:
+        return [line.strip() for line in f if line.strip()]
+
+
 def create_embed(title, description):
     return Embed(
         title=title,

@@ -15,7 +15,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import generate_password_hash
 
 import dsbridge.utils as utils
-from dsbridge.database import session
 from dsbridge.discord_bot import DiscordBot
 from dsbridge.models import ChatChannels
 from dsbridge.models import Message
@@ -49,14 +48,20 @@ class CustomJSONEncodeDecode:
 
 
 class Server:
-    def __init__(self, config):
+    def __init__(self, namespace: str, host_url: str, app_secret_key: str, session):
+        """
+        Args:
+            namespace: Socket.IO namespace to join on the server.
+            host_url: Host of the server, without the scheme.
+            app_secret_key: Shared secret used to sign requests to the server.
+            session: SQLAlchemy session registry to query the database with.
+        """
         self.socketio = socketio.AsyncClient(reconnection=False, logger=False, engineio_logger=False,
                                              json=CustomJSONEncodeDecode)
         self.session = session
-        self.namespace = config.SERVER_NAMESPACE
-        self.endpoint = config.HOST_URL
-        self.key = config.APP_SECRET_KEY
-        self.config = config
+        self.namespace = namespace
+        self.endpoint = host_url
+        self.key = app_secret_key
         self.discord_bot = None
 
         self.add_routes()
@@ -68,7 +73,6 @@ class Server:
             discord_bot: Discord bot
         """
         self.discord_bot = discord_bot
-        print('f')
 
     def add_routes(self):
         """
@@ -208,7 +212,7 @@ class Server:
         logging.info('Starting Server Bot')
         while True:
             timestamp = str(datetime.now(pytz.UTC).timestamp())
-            hash_k = generate_password_hash(self.config.APP_SECRET_KEY + timestamp, method='pbkdf2')
+            hash_k = generate_password_hash(self.key + timestamp, method='pbkdf2')
             headers = {'Authorization': hash_k, 'Timestamp': timestamp}
 
             try:
