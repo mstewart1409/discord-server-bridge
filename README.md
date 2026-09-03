@@ -7,6 +7,7 @@
 
 - [Introduction](#introduction)
 - [Usage](#usage)
+- [Users and models](#users-and-models)
 - [Server contract](#server-contract)
 - [Development](#development)
 - [Local testing](#local-testing)
@@ -29,7 +30,8 @@ Construct `DSBridge` with your settings and await `start()`:
 ```python
 import asyncio
 
-from dsbridge import DSBridge, build_database_uri
+from dsbridge import DSBridge
+from sqlalchemy.ext.asyncio import create_async_engine
 
 
 async def on_change(payload):
@@ -41,11 +43,19 @@ async def on_change(payload):
     await my_socketio_server.emit('chat-message', payload, namespace='/chat')
 
 
+async def display_name(user_id):
+    """Called to name the author of a message being mirrored onto Discord."""
+    return await my_user_directory.name_of(user_id)
+
+
+engine = create_async_engine('postgresql+psycopg://root:pass@localhost:5432/bets')
+
 bridge = DSBridge(
     discord_token='...',
-    database_uri=build_database_uri(name='bets', username='root', password='pass'),
+    database_engine=engine,
     on_change=on_change,
     banned_words=['...'],
+    display_name=display_name,
 )
 
 asyncio.run(bridge.start())
@@ -57,7 +67,19 @@ From inside an existing event loop, schedule it as a task instead:
 task = asyncio.create_task(bridge.start())
 ```
 
-`build_database_uri` is a convenience helper; any SQLAlchemy URI can be passed to `database_uri` directly, provided it names an **asyncio** driver such as `postgresql+psycopg://` or `postgresql+asyncpg://`. `banned_words` takes a list of words. `database_pool_size` and `database_max_overflow` tune the SQLAlchemy connection pool; leave them unset to keep SQLAlchemy's defaults.
+`database_engine` is your own SQLAlchemy engine: the bridge creates its tables on it and opens its own sessions, but never disposes it, so it can share the pool the host application already uses. The engine must name an **asyncio** driver such as `postgresql+psycopg://` or `postgresql+asyncpg://`, and echoing and pool sizing are configured where you create it. `banned_words` takes a list of words.
+
+## Users and models
+
+The bridge owns no user table. `Message.user_id` simply records whichever id your application uses, and `display_name` is how the bridge asks you to turn that id into a name for the Discord embed; it can be a plain function or a coroutine function, and messages that came from Discord (or that you leave unresolved) are shown as `Unknown user`.
+
+The models and their declarative base are importable, so you can query them, relate your own models to them, or include their tables in your migrations:
+
+```python
+from dsbridge import Base, ChatChannels, Message
+```
+
+`Base.metadata` holds only `chat_channels` and `chat_messages`, so it is safe to create against a database that already has your own schema.
 
 ## Server contract
 

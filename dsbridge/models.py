@@ -47,14 +47,13 @@ class Message(Base):
     id = Column(Integer, primary_key=True)
     channel_id = Column(Integer, ForeignKey('chat_channels.id'), nullable=False, index=True)
     discord_message_id = Column(BigInteger, index=True)
-    user_id = Column(Integer, ForeignKey('users.id'), index=True)
+    user_id = Column(Integer, index=True)
+    """Identifies the author in the host application; None for Discord-origin messages."""
     discord_user_id = Column(BigInteger)
     text = Column(String, nullable=False)
     hidden = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     last_updated = Column(DateTime(timezone=True), nullable=False, default=utcnow)
-
-    user = relationship('User', uselist=False, primaryjoin='Message.user_id==User.id')
 
     channel = relationship(
         'ChatChannels',
@@ -84,13 +83,3 @@ class Message(Base):
 
     def __repr__(self):
         return f'<Message {self.id}>'
-
-
-class User(Base):
-    __tablename__ = 'users'
-
-    id = Column(Integer, primary_key=True)
-    display_name = Column(String, nullable=False)
-
-    def __repr__(self):
-        return f'<User {self.id}>'

@@ -104,6 +104,26 @@ async def test_message_with_user_uses_display_name(server, seeded, bot_channel):
     assert embed.title == 'Alice'
 
 
+async def test_display_name_resolver_may_be_async(server, seeded, bot_channel):
+    async def resolve(user_id):
+        return f'user-{user_id}'
+    server.resolve_display_name = resolve
+
+    await server.handle_server_message(seeded['message_id'])
+
+    embed = bot_channel.send.await_args.kwargs['embed']
+    assert embed.title == f'user-{seeded["user_id"]}'
+
+
+async def test_without_a_resolver_the_placeholder_is_used(server, seeded, bot_channel):
+    server.resolve_display_name = None
+
+    await server.handle_server_message(seeded['message_id'])
+
+    embed = bot_channel.send.await_args.kwargs['embed']
+    assert embed.title == UNKNOWN_DISPLAY_NAME
+
+
 # --- #3: outbound Discord-origin changes are reported to the host ---
 
 async def test_send_to_server_creates_channel_and_reports(server, database, host):

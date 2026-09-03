@@ -1,5 +1,6 @@
 import logging
 from functools import wraps
+from inspect import isawaitable
 
 from discord.message import Message as DiscordMessage
 from sqlalchemy import select
@@ -20,7 +21,7 @@ async def _noop(payload):
 
 
 class Server:
-    def __init__(self, session, on_change=None):
+    def __init__(self, session, on_change=None, display_name=None):
         """
         The server side half of the bridge, driven by the host application.
 
@@ -28,9 +29,13 @@ class Server:
             session: SQLAlchemy session registry to query the database with.
             on_change: Optional awaitable called with a payload describing every
                 change that originated on Discord, so the host can broadcast it.
+            display_name: Optional callable taking a host user id and returning the
+                name to show on Discord. May be a coroutine function. Users belong
+                to the host application, so the bridge stores only their ids.
         """
         self.session = session
         self.on_change = on_change or _noop
+        self.resolve_display_name = display_name
         self.discord_bot = None
 
     def init_bot(self, discord_bot: DiscordBot):
@@ -74,16 +79,19 @@ class Server:
             The message, or None when no such message exists.
         """
         result = await self.session.execute(
-            select(Message)
-            .options(selectinload(Message.channel), selectinload(Message.user))
-            .filter_by(id=message_id)
+            select(Message).options(selectinload(Message.channel)).filter_by(id=message_id)
         )
         return result.scalar_one_or_none()
 
-    @staticmethod
-    def display_name(message: Message) -> str:
-        """The author's display name, or a placeholder for Discord-origin messages."""
-        return message.user.display_name if message.user else UNKNOWN_DISPLAY_NAME
+    async def display_name(self, message: Message) -> str:
+        """The author's display name, or a placeholder when the host cannot name them."""
+        if message.user_id is None or self.resolve_display_name is None:
+            return UNKNOWN_DISPLAY_NAME
+
+        name = self.resolve_display_name(message.user_id)
+        if isawaitable(name):
+            name = await name
+        return name or UNKNOWN_DISPLAY_NAME
 
     def get_discord_channel(self, message: Message):
         """
@@ -119,7 +127,7 @@ class Server:
             return
 
         discord_message = await discord_channel.send(
-            embed=utils.create_embed(self.display_name(message), message.text)
+            embed=utils.create_embed(await self.display_name(message), message.text)
         )
 
         # Update discord response on server
@@ -156,7 +164,7 @@ class Server:
         discord_message = await discord_channel.fetch_message(before_message.discord_message_id)
 
         edited_message = await discord_message.edit(
-            embed=utils.create_embed(self.display_name(before_message), after_message.text)
+            embed=utils.create_embed(await self.display_name(before_message), after_message.text)
         )
 
         # Update discord response on server

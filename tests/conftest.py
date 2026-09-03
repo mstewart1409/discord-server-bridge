@@ -3,11 +3,11 @@ from unittest.mock import MagicMock
 
 import pytest
 from discord.message import Message as DiscordMessage
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from dsbridge.database import Database
 from dsbridge.models import ChatChannels
 from dsbridge.models import Message
-from dsbridge.models import User
 from dsbridge.server import Server
 
 
@@ -34,10 +34,12 @@ def discord_channel(sent_id=999, fetched_id=888):
 
 @pytest.fixture
 async def database(tmp_path):
-    db = Database(f'sqlite+aiosqlite:///{tmp_path.as_posix()}/test.db')
+    engine = create_async_engine(f'sqlite+aiosqlite:///{tmp_path.as_posix()}/test.db')
+    db = Database(engine)
     await db.create_all()
     yield db
-    await db.dispose()
+    await db.close()
+    await engine.dispose()
 
 
 @pytest.fixture
@@ -56,9 +58,15 @@ def changes(host):
 
 
 @pytest.fixture
-def server(database, bot_channel, host):
+def names():
+    """Stands in for the host's user directory."""
+    return {7: 'Alice'}
+
+
+@pytest.fixture
+def server(database, bot_channel, host, names):
     """A Server wired to a recording host and a fake Discord bot."""
-    instance = Server(session=database.session, on_change=host)
+    instance = Server(session=database.session, on_change=host, display_name=names.get)
     instance.discord_bot = MagicMock()
     instance.discord_bot.bot.get_channel = MagicMock(return_value=bot_channel)
     return instance
@@ -75,19 +83,18 @@ def reload(database):
 
 @pytest.fixture
 async def seeded(database):
-    """A channel, a user and a server side message already mirrored to Discord."""
+    """A channel and a server side message already mirrored to Discord."""
     session = database.session_factory()
     channel = ChatChannels(discord_channel_id=222)
-    user = User(display_name='Alice')
-    session.add_all([channel, user])
+    session.add(channel)
     await session.commit()
 
     message = Message(discord_message(), channel)
-    message.user_id = user.id
+    message.user_id = 7
     session.add(message)
     await session.commit()
 
-    identifiers = {'channel_id': channel.id, 'user_id': user.id, 'message_id': message.id}
+    identifiers = {'channel_id': channel.id, 'user_id': message.user_id, 'message_id': message.id}
     await session.close()
     return identifiers
 
