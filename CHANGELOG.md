@@ -1,3 +1,16 @@
+## 0.4.0 (2026-10-26)
+
+### Feat
+
+- `channel_ids`: mirror and moderate only these server channels; direct messages are always mirrored
+
+### Fix
+
+- Never delete a message from a member who may manage messages in the channel (the owner, admins, moderators)
+- Ignore every bot and webhook message (no longer mirrored or moderated), not only the bridge's own
+- HTML escaping alone (an `&`) no longer counts as a sanitising change
+- An edit or delete of a message the bridge never stored logs at INFO, not ERROR
+
 ## 0.3.0 (2026-09-03)
 
 ### Feat

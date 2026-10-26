@@ -67,16 +67,18 @@ async def test_missing_messages_for_edit_are_logged(server, caplog):
 
 
 async def test_editing_unmirrored_discord_message_is_logged(server, database, caplog, host):
+    caplog.set_level('INFO')
     await server.edit_message_text(discord_message(), discord_message(message_id=112))
 
-    assert 'not mirrored on the server' in caplog.text
+    assert [r.levelname for r in caplog.records if 'not mirrored' in r.message] == ['INFO']
     assert host.await_count == 0
 
 
 async def test_deleting_unmirrored_discord_message_is_logged(server, caplog, host):
+    caplog.set_level('INFO')
     await server.delete_message(discord_message())
 
-    assert 'not mirrored on the server' in caplog.text
+    assert [r.levelname for r in caplog.records if 'not mirrored' in r.message] == ['INFO']
     assert host.await_count == 0
 
 
@@ -189,4 +191,3 @@ async def test_session_is_released_after_each_handler(server, seeded):
 
 async def test_decorator_preserves_handler_name():
     assert Server.handle_server_message.__name__ == 'handle_server_message'
-
