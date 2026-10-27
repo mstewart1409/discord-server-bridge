@@ -20,6 +20,7 @@ class DSBridge:
         message_model=Message,
         channel_model=ChatChannels,
         create_tables: bool = True,
+        channel_ids: set[int] | None = None,
     ):
         """
         Build the bridge and its dependencies.
@@ -41,6 +42,8 @@ class DSBridge:
                 ``ChatChannelsMixin``. Defaults to the bridge's own model.
             create_tables: Whether ``start`` should create the two tables when they do
                 not exist. Turn it off when your own migrations own the schema.
+            channel_ids: The Discord server channels to mirror and moderate; None for
+                every channel. Direct messages to the bot are always mirrored.
         """
         self.message_model = message_model
         self.channel_model = channel_model
@@ -57,6 +60,7 @@ class DSBridge:
         self.discord_bot = DiscordBot(
             discord_token=discord_token,
             banned_words=banned_words,
+            channel_ids=channel_ids,
         )
 
         self.server_bot.init_bot(self.discord_bot)

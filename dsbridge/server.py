@@ -261,7 +261,7 @@ class Server:
         before_server_message = result.scalars().first()
 
         if channel is None or before_server_message is None:
-            logging.error(f'Discord message is not mirrored on the server: {before_msg.id}')
+            logging.info(f'Discord message is not mirrored on the server: {before_msg.id}')
             return
 
         before_server_message.hidden = True
@@ -294,7 +294,7 @@ class Server:
         )
         server_msg = result.scalars().first()
         if server_msg is None:
-            logging.error(f'Discord message is not mirrored on the server: {message.id}')
+            logging.info(f'Discord message is not mirrored on the server: {message.id}')
             return
 
         server_msg.hidden = True
